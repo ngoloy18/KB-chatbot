@@ -1,8 +1,8 @@
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, File, Form, HTTPException, Query, Response, UploadFile, status
 
 from app.core.config import DocumentCategory
-from app.schemas.documents import DocumentCreate, DocumentResponse, DocumentUpdate
-from app.services.documents import DocumentNotFoundError, document_service
+from app.schemas.schemas_documents import DocumentCreate, DocumentResponse, DocumentUpdate
+from app.services.services_documents import DocumentNotFoundError, document_service
 
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -36,14 +36,31 @@ async def get_document(document_id: int) -> DocumentResponse:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
+
+
+
 @router.post(
     "",
     response_model=DocumentResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a document",
-    description="Create a document and generate its id and creation timestamp.",
+    summary="Upload a document file, and create a document from it",
+    description="Create a document from a text file uploaded through a multipart form.",
 )
-async def create_document(payload: DocumentCreate) -> DocumentResponse:
+async def upload_document(
+    name: str = Form(..., min_length=1, max_length=120),
+    category: DocumentCategory = Form(...),
+    file: UploadFile = File(...),
+) -> DocumentResponse:
+    file_bytes = await file.read()
+    try:
+        content = file_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only UTF-8 text files are supported for now.",
+        ) from exc
+
+    payload = DocumentCreate(name=name, category=category, content=content)
     return await document_service.create_document(payload)
 
 

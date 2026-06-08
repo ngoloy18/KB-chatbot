@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from app.core.config import DocumentCategory
-from app.schemas.documents import DocumentCreate, DocumentResponse, DocumentUpdate
+from app.schemas.schemas_documents import DocumentCreate, DocumentResponse, DocumentUpdate
 
 
 class DocumentNotFoundError(ValueError):
