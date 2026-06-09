@@ -39,7 +39,6 @@ The `category` field accepts these six KB standards:
 
 - `GET /api/documents` lists documents and supports optional `category` filtering.
 - `GET /api/documents/{document_id}` returns one document or `404`.
-- `POST /api/documents` creates a document and returns `201`.
 - `POST /api/documents/upload` creates a document from an uploaded text file.
 - `PUT /api/documents/{document_id}` updates only submitted fields or returns `404`.
 - `DELETE /api/documents/{document_id}` deletes one document or returns `404`.

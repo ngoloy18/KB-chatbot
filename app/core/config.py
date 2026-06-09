@@ -1,5 +1,6 @@
 from enum import StrEnum
 
+
 # Define an enumeration for document categories (6 categories)
 class DocumentCategory(StrEnum):
     CODING_CONVENTION = "coding-convention"
@@ -8,4 +9,3 @@ class DocumentCategory(StrEnum):
     DATABASE = "database"
     API_STANDARD = "api-standard"
     LOGGING = "logging"
-
