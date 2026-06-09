@@ -1,7 +1,9 @@
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 
 from app.routes.routes_documents import router as documents_router
 
+api_router = APIRouter(prefix="/api")
+api_router.include_router(documents_router)
 
 app = FastAPI(
     title="Developer KB Chatbot API",
@@ -9,9 +11,9 @@ app = FastAPI(
     description="Week 1 FastAPI foundation for managing developer knowledge documents.",
 )
 
-app.include_router(documents_router)
+app.include_router(api_router)
 
 
-@app.get("/", tags=["health"], summary="API health check")
+@api_router.get("/health", tags=["health"], summary="API health check")
 async def health_check() -> dict[str, str]:
     return {"status": "ok", "service": "developer-kb-chatbot"}

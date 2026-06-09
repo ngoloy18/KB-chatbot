@@ -1,5 +1,6 @@
+# This file defines the API routes for managing documents in the KB chatbot application.
+# It uses FastAPI to create endpoints for listing, retrieving, creating, updating, and deleting
 from fastapi import APIRouter, File, Form, HTTPException, Query, Response, UploadFile, status
-
 from app.core.config import DocumentCategory
 from app.schemas.schemas_documents import DocumentCreate, DocumentResponse, DocumentUpdate
 from app.services.services_documents import DocumentNotFoundError, document_service
@@ -7,7 +8,7 @@ from app.services.services_documents import DocumentNotFoundError, document_serv
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-
+#
 @router.get(
     "",
     response_model=list[DocumentResponse],
@@ -22,7 +23,7 @@ async def list_documents(
 ) -> list[DocumentResponse]:
     return await document_service.list_documents(category)
 
-
+# Get one document by id
 @router.get(
     "/{document_id}",
     response_model=DocumentResponse,
@@ -36,14 +37,12 @@ async def get_document(document_id: int) -> DocumentResponse:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
-
-
-
+# Create a document from an uploaded text file
 @router.post(
     "",
     response_model=DocumentResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Upload a document file, and create a document from it",
+    summary="Upload a document file and create a document",
     description="Create a document from a text file uploaded through a multipart form.",
 )
 async def upload_document(
@@ -63,7 +62,7 @@ async def upload_document(
     payload = DocumentCreate(name=name, category=category, content=content)
     return await document_service.create_document(payload)
 
-
+# Update a document by id, with partial update support (only fields provided in the request body will be updated)
 @router.put(
     "/{document_id}",
     response_model=DocumentResponse,
@@ -79,6 +78,7 @@ async def update_document(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
+# Delete a document by id
 @router.delete(
     "/{document_id}",
     status_code=status.HTTP_204_NO_CONTENT,
