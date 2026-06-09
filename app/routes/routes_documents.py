@@ -8,7 +8,7 @@ from app.services.services_documents import DocumentNotFoundError, document_serv
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-#
+# List documents, optionally filtered by category
 @router.get(
     "",
     response_model=list[DocumentResponse],
@@ -35,7 +35,6 @@ async def get_document(document_id: int) -> DocumentResponse:
         return await document_service.get_document(document_id)
     except DocumentNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-
 
 # Create a document from an uploaded text file
 @router.post(
