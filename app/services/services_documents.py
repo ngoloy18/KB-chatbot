@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from app.core.config import DocumentCategory
 from app.schemas.schemas_documents import (
     DocumentCreate,
+    DocumentListResponse,
     DocumentResponse,
     DocumentUpdate,
 )
@@ -21,14 +22,36 @@ class DocumentService:
         self._documents: dict[int, DocumentResponse] = {}
         self._next_id = 1
 
-    # List documents, optionally filtered by category
+    # List documents, optionally filtered by name or category
     async def list_documents(
-        self, category: DocumentCategory | None = None
-    ) -> list[DocumentResponse]:
+        self,
+        name: str | None = None,
+        category: DocumentCategory | None = None,
+        page: int = 1,
+        page_size: int = 10,
+    ) -> DocumentListResponse:
         documents = list(self._documents.values())
-        if category is None:
-            return documents
-        return [document for document in documents if document.category == category]
+        if category is not None:
+            documents = [
+                document for document in documents if document.category == category
+            ]
+        if name is not None:
+            documents = [
+                document
+                for document in documents
+                if name.lower() in document.name.lower()
+            ]
+
+        total = len(documents)
+        start = (page - 1) * page_size
+        end = start + page_size
+
+        return DocumentListResponse(
+            items=documents[start:end],
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
 
     # Get one document by id, or raise DocumentNotFoundError if it doesn't exist
     async def get_document(self, document_id: int) -> DocumentResponse:

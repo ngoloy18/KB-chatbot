@@ -2,8 +2,8 @@
 # It uses FastAPI to create endpoints for listing, retrieving, creating, updating, and deleting
 from fastapi import (
     APIRouter,
+    Depends,
     File,
-    Form,
     HTTPException,
     Query,
     Response,
@@ -13,7 +13,9 @@ from fastapi import (
 from app.core.config import DocumentCategory
 from app.schemas.schemas_documents import (
     DocumentCreate,
+    DocumentListResponse,
     DocumentResponse,
+    DocumentUploadRequest,
     DocumentUpdate,
 )
 from app.services.services_documents import DocumentNotFoundError, document_service
@@ -21,20 +23,37 @@ from app.services.services_documents import DocumentNotFoundError, document_serv
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
-# List documents, optionally filtered by category
+# List documents, optionally filtered by name or category
 @router.get(
     "",
-    response_model=list[DocumentResponse],
+    response_model=DocumentListResponse,
     summary="List documents",
-    description="Return all documents, optionally filtered by category.",
+    description="Return paginated documents, optionally filtered by name or category.",
 )
 async def list_documents(
+    name: str | None = Query(
+        default=None,
+        min_length=1,
+        max_length=120,
+        description="Filter documents by name.",
+    ),
     category: DocumentCategory | None = Query(
         default=None,
         description="Filter documents by one of the six supported KB standards.",
-    )
-) -> list[DocumentResponse]:
-    return await document_service.list_documents(category)
+    ),
+    page: int = Query(
+        default=1,
+        ge=1,
+        description="Page number to return. Starts at 1.",
+    ),
+    page_size: int = Query(
+        default=10,
+        ge=1,
+        le=100,
+        description="Number of documents per page.",
+    ),
+) -> DocumentListResponse:
+    return await document_service.list_documents(name, category, page, page_size)
 
 
 # Get one document by id
@@ -60,8 +79,7 @@ async def get_document(document_id: int) -> DocumentResponse:
     description="Create a document from a text file uploaded through a multipart form.",
 )
 async def upload_document(
-    name: str = Form(..., min_length=1, max_length=120),
-    category: DocumentCategory = Form(...),
+    request: DocumentUploadRequest = Depends(DocumentUploadRequest.as_form),
     file: UploadFile = File(...),
 ) -> DocumentResponse:
     file_bytes = await file.read()
@@ -73,7 +91,11 @@ async def upload_document(
             detail="Only UTF-8 text files are supported for now.",
         ) from exc
 
-    payload = DocumentCreate(name=name, category=category, content=content)
+    payload = DocumentCreate(
+        name=request.name,
+        category=request.category,
+        content=content,
+    )
     return await document_service.create_document(payload)
 
 
