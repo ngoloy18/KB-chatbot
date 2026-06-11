@@ -7,14 +7,37 @@ Developer knowledge-base chatbot project.
 This week implements the document-management API foundation that later chatbot
 features can build on.
 
+## Requirements
+
+- Python 3.11 or newer
+- `pip`
+- Project dependencies from `requirements.txt`
+
 ## Run locally
 
 ```powershell
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+python --version
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --reload
+```
+
+If your machine uses the `py` launcher on Windows, you can also run:
+
+```powershell
+py -3.11 -m pip install -r requirements.txt
+py -3.11 -m uvicorn app.main:app --reload
 ```
 
 Open Swagger UI at `http://127.0.0.1:8000/docs`.
+
+## Optional virtual environment
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
 
 ## Project structure
 
@@ -40,12 +63,12 @@ The `category` field accepts these six KB standards:
 
 ## Endpoints
 
-
 - `GET /api/documents` lists paginated documents and supports optional `name` and `category` filtering.
 - `GET /api/documents/{document_id}` returns one document or `404`.
-- `POST /api/documents/upload` creates a document from an uploaded text file.
+- `POST /api/documents` creates a document from an uploaded UTF-8 text file.
 - `PUT /api/documents/{document_id}` updates only submitted fields or returns `404`.
 - `DELETE /api/documents/{document_id}` deletes one document or returns `404`.
+
 ## Swagger test checklist
 
 - Create a document with a valid category.
