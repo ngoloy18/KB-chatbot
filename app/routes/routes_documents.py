@@ -115,12 +115,34 @@ async def upload_document(
     "/{document_id}",
     response_model=DocumentResponse,
     summary="Update a document",
-    description="Update only the fields provided in the request body.",
+    description="Replace an existing document with a new uploaded text file.",
 )
 async def update_document(
-    document_id: int, payload: DocumentUpdate
+    document_id: int,
+    request: DocumentUploadRequest = Depends(DocumentUploadRequest.as_form),
+    file: UploadFile = File(...),
 ) -> DocumentResponse:
-    """Partially update a document and return the updated version."""
+    """Replace a document's file content while keeping its id and created_at."""
+
+    # PUT uses multipart form data here because the replacement content comes
+    # from a newly uploaded file, not from a JSON request body.
+    file_bytes = await file.read()
+    try:
+        # The service stores plain text content, so uploaded files must be UTF-8.
+        content = file_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only UTF-8 text files are supported for now.",
+        ) from exc
+
+    # Reuse the update schema so the service can replace fields while preserving
+    # server-owned data such as id and created_at.
+    payload = DocumentUpdate(
+        name=request.name,
+        category=request.category,
+        content=content,
+    )
 
     try:
         return await document_service.update_document(document_id, payload)

@@ -66,7 +66,7 @@ The `category` field accepts these six KB standards:
 - `GET /api/documents` lists paginated documents and supports optional `name` and `category` filtering.
 - `GET /api/documents/{document_id}` returns one document or `404`.
 - `POST /api/documents` creates a document from an uploaded UTF-8 text file.
-- `PUT /api/documents/{document_id}` updates only submitted fields or returns `404`.
+- `PUT /api/documents/{document_id}` replaces an existing document with a new uploaded UTF-8 text file or returns `404`.
 - `DELETE /api/documents/{document_id}` deletes one document or returns `404`.
 
 ## Swagger test checklist
@@ -77,6 +77,6 @@ The `category` field accepts these six KB standards:
 - Filter documents with `GET /api/documents?name=Coding&category=coding-convention&page=1&page_size=10`.
 - Fetch a valid document by id.
 - Fetch a missing id and confirm it returns `404`.
-- Update only `name` and confirm `category` and `content` stay unchanged.
+- Replace a document with `PUT /api/documents/{document_id}` and confirm the same `id` and `created_at` are kept.
 - Try an invalid category and confirm validation rejects it.
 - Delete a document and confirm the same id returns `404` afterward.
