@@ -1,8 +1,13 @@
 from enum import StrEnum
 
 
-# Define an enumeration for document categories (6 categories)
 class DocumentCategory(StrEnum):
+    """Allowed knowledge-base document categories.
+
+    StrEnum makes each enum member behave like a string, so FastAPI/Pydantic can
+    validate incoming values and show the allowed choices in Swagger.
+    """
+
     CODING_CONVENTION = "coding-convention"
     GIT_FLOW = "git-flow"
     PULL_REQUEST = "pull-request"

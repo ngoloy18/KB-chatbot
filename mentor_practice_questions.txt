@@ -1,0 +1,26 @@
+Week 1 Mentor Practice - New 10 Questions
+=========================================
+
+Answer these without looking at the answers first.
+
+1. Why does the project use separate folders for routes, services, schemas, and core?
+
+2. What does this line in main.py do?
+
+app.include_router(api_router)
+
+3. Why should GET /api/documents support filtering by name and category?
+
+4. What is the purpose of DocumentListResponse, and why not return just list[DocumentResponse]?
+
+5. Explain what happens when the client sends an invalid category value.
+
+6. Why does the upload endpoint decode file_bytes using UTF-8?
+
+7. What does HTTPException do in FastAPI?
+
+8. Why does delete_document return status code 204 instead of returning the deleted document?
+
+9. What is one problem with using an in-memory dictionary as storage?
+
+10. What changes will probably be needed in Week 2 when moving from in-memory storage to PostgreSQL?

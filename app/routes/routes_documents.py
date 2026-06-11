@@ -1,5 +1,3 @@
-# This file defines the API routes for managing documents in the KB chatbot application.
-# It uses FastAPI to create endpoints for listing, retrieving, creating, updating, and deleting
 from fastapi import (
     APIRouter,
     Depends,
@@ -20,10 +18,10 @@ from app.schemas.schemas_documents import (
 )
 from app.services.services_documents import DocumentNotFoundError, document_service
 
+# All document endpoints share the same prefix and Swagger tag.
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
-# List documents, optionally filtered by name or category
 @router.get(
     "",
     response_model=DocumentListResponse,
@@ -53,10 +51,15 @@ async def list_documents(
         description="Number of documents per page.",
     ),
 ) -> DocumentListResponse:
+    """List documents with optional filters and pagination.
+
+    Query validation lives in the endpoint signature so FastAPI can reject bad
+    requests before they reach the service layer.
+    """
+
     return await document_service.list_documents(name, category, page, page_size)
 
 
-# Get one document by id
 @router.get(
     "/{document_id}",
     response_model=DocumentResponse,
@@ -64,13 +67,15 @@ async def list_documents(
     description="Return one document by id.",
 )
 async def get_document(document_id: int) -> DocumentResponse:
+    """Return one document by id, translating service errors to HTTP errors."""
+
     try:
         return await document_service.get_document(document_id)
     except DocumentNotFoundError as exc:
+        # Keep the service free of FastAPI-specific exceptions.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
-# Create a document from an uploaded text file
 @router.post(
     "",
     response_model=DocumentResponse,
@@ -82,8 +87,13 @@ async def upload_document(
     request: DocumentUploadRequest = Depends(DocumentUploadRequest.as_form),
     file: UploadFile = File(...),
 ) -> DocumentResponse:
+    """Create a document from a UTF-8 text file uploaded as multipart form data."""
+
+    # UploadFile exposes async reads, which keeps this route compatible with
+    # FastAPI's async request handling.
     file_bytes = await file.read()
     try:
+        # Store document content as text; non-UTF-8 files are rejected clearly.
         content = file_bytes.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise HTTPException(
@@ -91,6 +101,8 @@ async def upload_document(
             detail="Only UTF-8 text files are supported for now.",
         ) from exc
 
+    # Convert form data plus file content into the same create schema used by
+    # the service, so the service does not need to understand file uploads.
     payload = DocumentCreate(
         name=request.name,
         category=request.category,
@@ -99,7 +111,6 @@ async def upload_document(
     return await document_service.create_document(payload)
 
 
-# Update a document by id, with partial update support (only fields provided in the request body will be updated)
 @router.put(
     "/{document_id}",
     response_model=DocumentResponse,
@@ -109,13 +120,15 @@ async def upload_document(
 async def update_document(
     document_id: int, payload: DocumentUpdate
 ) -> DocumentResponse:
+    """Partially update a document and return the updated version."""
+
     try:
         return await document_service.update_document(document_id, payload)
     except DocumentNotFoundError as exc:
+        # Route layer decides the HTTP status code for not-found service errors.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
-# Delete a document by id
 @router.delete(
     "/{document_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -123,6 +136,8 @@ async def update_document(
     description="Delete one document by id.",
 )
 async def delete_document(document_id: int) -> Response:
+    """Delete a document and return an empty 204 response."""
+
     try:
         await document_service.delete_document(document_id)
     except DocumentNotFoundError as exc:

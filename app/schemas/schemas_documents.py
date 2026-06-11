@@ -1,5 +1,3 @@
-# This file defines the Pydantic models for the document-related API endpoints, including the request and response schemas.
-
 from datetime import datetime
 from typing import Annotated
 
@@ -8,14 +6,18 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core.config import DocumentCategory
 
 
-# This file defines the Pydantic models for the document-related API endpoints, including the request and response schemas.
 class DocumentCreate(BaseModel):
+    """Request body used after upload data has been converted into text."""
+
+    # Field constraints become both runtime validation and OpenAPI docs.
     name: str = Field(..., min_length=1, max_length=120)
     category: DocumentCategory
     content: str = Field(..., min_length=1)
 
 
 class DocumentUploadRequest(BaseModel):
+    """Text form fields sent together with the uploaded document file."""
+
     name: str = Field(..., min_length=1, max_length=120)
     category: DocumentCategory
 
@@ -25,18 +27,24 @@ class DocumentUploadRequest(BaseModel):
         name: Annotated[str, Form(..., min_length=1, max_length=120)],
         category: Annotated[DocumentCategory, Form(...)],
     ) -> "DocumentUploadRequest":
+        """Tell FastAPI how to build this model from multipart form fields."""
+
         return cls(name=name, category=category)
 
 
-# The DocumentUpdate model is used for updating documents, and all fields are optional to allow for partial updates.
 class DocumentUpdate(BaseModel):
+    """Request body for partial updates; omitted fields stay unchanged."""
+
     name: str | None = Field(default=None, min_length=1, max_length=120)
     category: DocumentCategory | None = None
     content: str | None = Field(default=None, min_length=1)
 
 
-# The DocumentResponse model is used for returning document data in API responses, and it includes the document's id, name, category, content, and creation timestamp.
 class DocumentResponse(BaseModel):
+    """Document shape returned by the API."""
+
+    # from_attributes allows this schema to also serialize object-like records
+    # if the in-memory store is replaced with ORM/database models later.
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -47,6 +55,8 @@ class DocumentResponse(BaseModel):
 
 
 class DocumentListResponse(BaseModel):
+    """Paginated response returned by the list endpoint."""
+
     items: list[DocumentResponse]
     total: int
     page: int
