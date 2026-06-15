@@ -1,4 +1,10 @@
 from enum import StrEnum
+import os
+
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 
 class DocumentCategory(StrEnum):
@@ -14,3 +20,14 @@ class DocumentCategory(StrEnum):
     DATABASE = "database"
     API_STANDARD = "api-standard"
     LOGGING = "logging"
+
+
+class Settings:
+    """Application settings loaded from environment variables."""
+
+    def __init__(self) -> None:
+        self.database_url = os.getenv("DATABASE_URL", "")
+        self.database_echo = os.getenv("DATABASE_ECHO", "false").lower() == "true"
+
+
+settings = Settings()

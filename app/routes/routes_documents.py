@@ -8,7 +8,11 @@ from fastapi import (
     UploadFile,
     status,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
+
 from app.core.config import DocumentCategory
+from app.db.session import get_db
 from app.schemas.schemas_documents import (
     DocumentCreate,
     DocumentListResponse,
@@ -16,7 +20,11 @@ from app.schemas.schemas_documents import (
     DocumentUploadRequest,
     DocumentUpdate,
 )
-from app.services.services_documents import DocumentNotFoundError, document_service
+from app.services.services_documents import (
+    DocumentCategoryNotFoundError,
+    DocumentNotFoundError,
+    document_service,
+)
 
 # All document endpoints share the same prefix and Swagger tag.
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -50,6 +58,7 @@ async def list_documents(
         le=100,
         description="Number of documents per page.",
     ),
+    db: AsyncSession = Depends(get_db),
 ) -> DocumentListResponse:
     """List documents with optional filters and pagination.
 
@@ -57,7 +66,7 @@ async def list_documents(
     requests before they reach the service layer.
     """
 
-    return await document_service.list_documents(name, category, page, page_size)
+    return await document_service.list_documents(db, name, category, page, page_size)
 
 
 @router.get(
@@ -66,11 +75,14 @@ async def list_documents(
     summary="Get one document",
     description="Return one document by id.",
 )
-async def get_document(document_id: int) -> DocumentResponse:
+async def get_document(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> DocumentResponse:
     """Return one document by id, translating service errors to HTTP errors."""
 
     try:
-        return await document_service.get_document(document_id)
+        return await document_service.get_document(db, document_id)
     except DocumentNotFoundError as exc:
         # Keep the service free of FastAPI-specific exceptions.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
@@ -86,6 +98,7 @@ async def get_document(document_id: int) -> DocumentResponse:
 async def upload_document(
     request: DocumentUploadRequest = Depends(DocumentUploadRequest.as_form),
     file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
 ) -> DocumentResponse:
     """Create a document from a UTF-8 text file uploaded as multipart form data."""
 
@@ -108,7 +121,13 @@ async def upload_document(
         category=request.category,
         content=content,
     )
-    return await document_service.create_document(payload)
+    try:
+        return await document_service.create_document(db, payload)
+    except DocumentCategoryNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
 
 
 @router.put(
@@ -118,9 +137,10 @@ async def upload_document(
     description="Replace an existing document with a new uploaded text file.",
 )
 async def update_document(
-    document_id: int,
+    document_id: UUID,
     request: DocumentUploadRequest = Depends(DocumentUploadRequest.as_form),
     file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
 ) -> DocumentResponse:
     """Replace a document's file content while keeping its id and created_at."""
 
@@ -145,10 +165,15 @@ async def update_document(
     )
 
     try:
-        return await document_service.update_document(document_id, payload)
+        return await document_service.update_document(db, document_id, payload)
     except DocumentNotFoundError as exc:
         # Route layer decides the HTTP status code for not-found service errors.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except DocumentCategoryNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
 
 
 @router.delete(
@@ -157,11 +182,14 @@ async def update_document(
     summary="Delete a document",
     description="Delete one document by id.",
 )
-async def delete_document(document_id: int) -> Response:
+async def delete_document(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
     """Delete a document and return an empty 204 response."""
 
     try:
-        await document_service.delete_document(document_id)
+        await document_service.delete_document(db, document_id)
     except DocumentNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     return Response(status_code=status.HTTP_204_NO_CONTENT)

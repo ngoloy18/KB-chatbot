@@ -1,0 +1,157 @@
+Week 2 PostgreSQL + SQLAlchemy notes
+====================================
+
+What changed
+------------
+
+1. Added database settings in app/core/config.py
+
+The app now reads DATABASE_URL from the .env file. That is the PostgreSQL
+connection string. DATABASE_ECHO is optional; when true, SQLAlchemy prints SQL
+queries while the app runs.
+
+2. Added app/db/base.py
+
+This file defines the shared SQLAlchemy Base class. Every ORM model inherits
+from this Base so SQLAlchemy and Alembic can know what tables exist.
+
+3. Added app/db/session.py
+
+This file creates the async database engine and AsyncSession factory.
+The get_db function is a FastAPI dependency. Routes use it to get one database
+session per request.
+
+4. Added app/models/models_database.py
+
+This file contains SQLAlchemy ORM models for the kb schema tables:
+
+- users
+- document_categories
+- documents
+- document_chunks
+- document_permissions
+- chat_sessions
+- chat_messages
+- message_sources
+- ai_runs
+
+These classes map Python objects to PostgreSQL tables.
+
+5. Updated app/services/services_documents.py
+
+The document service no longer stores data in a Python dictionary. It now uses
+AsyncSession and SQLAlchemy queries to list, get, create, update, and delete
+documents in PostgreSQL.
+
+The API still accepts name and category, but the database stores the document
+name in the documents.title column and stores the category through category_id.
+
+6. Updated app/routes/routes_documents.py
+
+The document routes now receive a database session with Depends(get_db). Route
+handlers still stay thin; they decode uploaded files, build Pydantic schemas,
+and call the service layer.
+
+Document IDs are now UUID values instead of integers because the PostgreSQL
+tables use UUID primary keys.
+
+7. Updated app/schemas/schemas_documents.py
+
+DocumentResponse.id changed from int to UUID.
+
+8. Added Alembic files
+
+The repo now has:
+
+- alembic.ini
+- alembic/env.py
+- alembic/versions/0001_initial_kb_schema.py
+
+Alembic is the migration tool. It records database structure changes in code so
+other people can recreate the same database.
+
+Important Alembic note
+----------------------
+
+You already created the kb tables manually in PostgreSQL. Because of that, do
+not immediately run this on the same database:
+
+    alembic upgrade head
+
+That command would try to create tables that already exist.
+
+For your current database, mark it as already matching the first migration:
+
+    alembic stamp head
+
+For a brand new empty database, run:
+
+    alembic upgrade head
+
+What the database means for the app
+-----------------------------------
+
+users:
+Stores app users. Admin users can later access everything. Normal users can be
+limited to their own documents or shared documents.
+
+document_categories:
+Stores the six allowed knowledge base categories:
+
+- coding-convention
+- git-flow
+- pull-request
+- database
+- api-standard
+- logging
+
+documents:
+Stores uploaded document content and metadata.
+
+document_chunks:
+Stores smaller text chunks from documents. AI search usually works better on
+chunks than on full documents.
+
+document_permissions:
+Stores which user can access which document.
+
+chat_sessions:
+Stores one conversation thread.
+
+chat_messages:
+Stores user, assistant, and system messages inside a chat session.
+
+message_sources:
+Stores which document/chunk was used by an AI answer. This is useful for
+citations and debugging.
+
+ai_runs:
+Stores metadata about each AI generation, such as model name, token counts,
+status, and error message.
+
+How to test document persistence
+--------------------------------
+
+1. Start PostgreSQL.
+2. Make sure .env has the correct DATABASE_URL.
+3. Install dependencies:
+
+    python -m pip install -r requirements.txt
+
+4. If your tables already exist, mark Alembic:
+
+    alembic stamp head
+
+5. Start the API:
+
+    python -m uvicorn app.main:app --reload
+
+6. Open Swagger:
+
+    http://127.0.0.1:8000/docs
+
+7. Upload a document.
+8. Restart the API.
+9. List documents again.
+
+If the document still appears after restart, PostgreSQL persistence is working.

@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Form
 from pydantic import BaseModel, ConfigDict, Field
@@ -47,7 +48,7 @@ class DocumentResponse(BaseModel):
     # if the in-memory store is replaced with ORM/database models later.
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
+    id: UUID
     name: str
     category: DocumentCategory
     content: str

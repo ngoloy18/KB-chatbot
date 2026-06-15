@@ -1,6 +1,11 @@
-from datetime import UTC, datetime
+from uuid import UUID
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import DocumentCategory
+from app.models.models_database import Document, DocumentCategoryModel
 from app.schemas.schemas_documents import (
     DocumentCreate,
     DocumentListResponse,
@@ -10,28 +15,23 @@ from app.schemas.schemas_documents import (
 
 
 class DocumentNotFoundError(ValueError):
-    """Raised when a requested document id does not exist in the service."""
+    """Raised when a requested document id does not exist."""
+
+    pass
+
+
+class DocumentCategoryNotFoundError(ValueError):
+    """Raised when the configured category rows are missing from the database."""
 
     pass
 
 
 class DocumentService:
-    """Business logic for managing documents.
-
-    This service currently stores data in memory, so documents are lost when the
-    API process restarts. The class shape still keeps storage logic separate
-    from the HTTP routes, which makes it easier to replace with a database later.
-    """
-
-    def __init__(self) -> None:
-        # Key documents by id so lookups, updates, and deletes are direct.
-        self._documents: dict[int, DocumentResponse] = {}
-
-        # Simple auto-incrementing id counter for the in-memory store.
-        self._next_id = 1
+    """Business logic for managing documents in PostgreSQL."""
 
     async def list_documents(
         self,
+        db: AsyncSession,
         name: str | None = None,
         category: DocumentCategory | None = None,
         page: int = 1,
@@ -39,80 +39,136 @@ class DocumentService:
     ) -> DocumentListResponse:
         """Return a paginated list of documents after optional filters."""
 
-        documents = list(self._documents.values())
-
-        # Apply category filtering first because it is an exact enum match.
-        if category is not None:
-            documents = [
-                document for document in documents if document.category == category
-            ]
-
-        # Name search is case-insensitive and matches any part of the title.
+        filters = []
         if name is not None:
-            documents = [
-                document
-                for document in documents
-                if name.lower() in document.name.lower()
-            ]
+            filters.append(Document.title.ilike(f"%{name}%"))
+        if category is not None:
+            filters.append(DocumentCategoryModel.name == category.value)
 
-        # Pagination is done after filtering so total describes the filtered set.
-        total = len(documents)
-        start = (page - 1) * page_size
-        end = start + page_size
+        total_query = (
+            select(func.count())
+            .select_from(Document)
+            .join(DocumentCategoryModel)
+            .where(*filters)
+        )
+        total = await db.scalar(total_query)
+
+        documents_query = (
+            select(Document)
+            .join(DocumentCategoryModel)
+            .options(selectinload(Document.category))
+            .where(*filters)
+            .order_by(Document.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        result = await db.scalars(documents_query)
+        documents = result.all()
 
         return DocumentListResponse(
-            items=documents[start:end],
-            total=total,
+            items=[self._to_response(document) for document in documents],
+            total=total or 0,
             page=page,
             page_size=page_size,
         )
 
-    async def get_document(self, document_id: int) -> DocumentResponse:
+    async def get_document(
+        self,
+        db: AsyncSession,
+        document_id: UUID,
+    ) -> DocumentResponse:
         """Return one document or raise a service-level not-found error."""
 
-        document = self._documents.get(document_id)
+        document = await self._get_document_model(db, document_id)
+        return self._to_response(document)
+
+    async def create_document(
+        self,
+        db: AsyncSession,
+        payload: DocumentCreate,
+    ) -> DocumentResponse:
+        """Create a new document in PostgreSQL."""
+
+        category = await self._get_category_model(db, payload.category)
+        document = Document(
+            title=payload.name,
+            category_id=category.id,
+            category=category,
+            content=payload.content,
+            status="ready",
+        )
+
+        db.add(document)
+        await db.commit()
+        return self._to_response(document)
+
+    async def update_document(
+        self,
+        db: AsyncSession,
+        document_id: UUID,
+        payload: DocumentUpdate,
+    ) -> DocumentResponse:
+        """Update only the fields supplied in the request body."""
+
+        document = await self._get_document_model(db, document_id)
+
+        if payload.name is not None:
+            document.title = payload.name
+        if payload.content is not None:
+            document.content = payload.content
+        if payload.category is not None:
+            category = await self._get_category_model(db, payload.category)
+            document.category_id = category.id
+            document.category = category
+
+        await db.commit()
+        return self._to_response(document)
+
+    async def delete_document(self, db: AsyncSession, document_id: UUID) -> None:
+        """Delete one document or raise if the id is unknown."""
+
+        document = await self._get_document_model(db, document_id)
+        await db.delete(document)
+        await db.commit()
+
+    async def _get_document_model(
+        self,
+        db: AsyncSession,
+        document_id: UUID,
+    ) -> Document:
+        query = (
+            select(Document)
+            .options(selectinload(Document.category))
+            .where(Document.id == document_id)
+        )
+        document = await db.scalar(query)
         if document is None:
             raise DocumentNotFoundError(f"Document {document_id} was not found.")
         return document
 
-    async def create_document(self, payload: DocumentCreate) -> DocumentResponse:
-        """Create a new document with a generated id and UTC timestamp."""
-
-        document = DocumentResponse(
-            id=self._next_id,
-            name=payload.name,
-            category=payload.category,
-            content=payload.content,
-            created_at=datetime.now(UTC),
+    async def _get_category_model(
+        self,
+        db: AsyncSession,
+        category: DocumentCategory,
+    ) -> DocumentCategoryModel:
+        query = select(DocumentCategoryModel).where(
+            DocumentCategoryModel.name == category.value
         )
-        self._documents[document.id] = document
-        self._next_id += 1
-        return document
+        category_model = await db.scalar(query)
+        if category_model is None:
+            raise DocumentCategoryNotFoundError(
+                f"Document category {category.value} was not found in the database."
+            )
+        return category_model
 
-    async def update_document(
-        self, document_id: int, payload: DocumentUpdate
-    ) -> DocumentResponse:
-        """Update only the fields supplied in the request body."""
-
-        document = await self.get_document(document_id)
-
-        # exclude_unset keeps missing fields unchanged; exclude_none also ignores
-        # fields explicitly sent as null so required document data is not erased.
-        update_data = payload.model_dump(exclude_unset=True, exclude_none=True)
-
-        # Pydantic creates a copied model so the existing response schema remains
-        # the single source of truth for stored document shape.
-        updated_document = document.model_copy(update=update_data)
-        self._documents[document_id] = updated_document
-        return updated_document
-
-    async def delete_document(self, document_id: int) -> None:
-        """Delete one document or raise if the id is unknown."""
-
-        if document_id not in self._documents:
-            raise DocumentNotFoundError(f"Document {document_id} was not found.")
-        del self._documents[document_id]
+    def _to_response(self, document: Document) -> DocumentResponse:
+        return DocumentResponse(
+            id=document.id,
+            name=document.title,
+            category=DocumentCategory(document.category.name),
+            content=document.content,
+            created_at=document.created_at,
+        )
 
 
-# Shared service instance used by the routes module.
 document_service = DocumentService()
