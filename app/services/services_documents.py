@@ -94,6 +94,9 @@ class DocumentService:
             title=payload.name,
             category_id=category.id,
             category=category,
+            file_name=payload.file_name,
+            file_path=payload.file_path,
+            file_type=payload.file_type,
             content=payload.content,
             status="ready",
         )
@@ -116,6 +119,12 @@ class DocumentService:
             document.title = payload.name
         if payload.content is not None:
             document.content = payload.content
+        if payload.file_name is not None:
+            document.file_name = payload.file_name
+        if payload.file_path is not None:
+            document.file_path = payload.file_path
+        if payload.file_type is not None:
+            document.file_type = payload.file_type
         if payload.category is not None:
             category = await self._get_category_model(db, payload.category)
             document.category_id = category.id
@@ -166,6 +175,9 @@ class DocumentService:
             id=document.id,
             name=document.title,
             category=DocumentCategory(document.category.name),
+            file_name=document.file_name,
+            file_path=document.file_path,
+            file_type=document.file_type,
             content=document.content,
             created_at=document.created_at,
         )

@@ -14,6 +14,9 @@ class DocumentCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     category: DocumentCategory
     content: str = Field(..., min_length=1)
+    file_name: str | None = None
+    file_path: str | None = None
+    file_type: str | None = None
 
 
 class DocumentUploadRequest(BaseModel):
@@ -39,6 +42,9 @@ class DocumentUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     category: DocumentCategory | None = None
     content: str | None = Field(default=None, min_length=1)
+    file_name: str | None = None
+    file_path: str | None = None
+    file_type: str | None = None
 
 
 class DocumentResponse(BaseModel):
@@ -51,6 +57,9 @@ class DocumentResponse(BaseModel):
     id: UUID
     name: str
     category: DocumentCategory
+    file_name: str | None = None
+    file_path: str | None = None
+    file_type: str | None = None
     content: str
     created_at: datetime
 

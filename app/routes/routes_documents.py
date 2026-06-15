@@ -8,8 +8,9 @@ from fastapi import (
     UploadFile,
     status,
 )
+from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.core.config import DocumentCategory
 from app.db.session import get_db
@@ -28,6 +29,18 @@ from app.services.services_documents import (
 
 # All document endpoints share the same prefix and Swagger tag.
 router = APIRouter(prefix="/documents", tags=["documents"])
+UPLOAD_DIR = Path("uploads")
+
+
+def save_uploaded_file(file: UploadFile, file_bytes: bytes) -> tuple[str, str, str]:
+    """Save the uploaded file and return name, path, and content type metadata."""
+
+    original_name = Path(file.filename or "uploaded-document.txt").name
+    stored_name = f"{uuid4()}_{original_name}"
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    file_path = UPLOAD_DIR / stored_name
+    file_path.write_bytes(file_bytes)
+    return original_name, file_path.as_posix(), file.content_type or "text/plain"
 
 
 @router.get(
@@ -113,6 +126,7 @@ async def upload_document(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only UTF-8 text files are supported for now.",
         ) from exc
+    file_name, file_path, file_type = save_uploaded_file(file, file_bytes)
 
     # Convert form data plus file content into the same create schema used by
     # the service, so the service does not need to understand file uploads.
@@ -120,6 +134,9 @@ async def upload_document(
         name=request.name,
         category=request.category,
         content=content,
+        file_name=file_name,
+        file_path=file_path,
+        file_type=file_type,
     )
     try:
         return await document_service.create_document(db, payload)
@@ -155,6 +172,7 @@ async def update_document(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only UTF-8 text files are supported for now.",
         ) from exc
+    file_name, file_path, file_type = save_uploaded_file(file, file_bytes)
 
     # Reuse the update schema so the service can replace fields while preserving
     # server-owned data such as id and created_at.
@@ -162,6 +180,9 @@ async def update_document(
         name=request.name,
         category=request.category,
         content=content,
+        file_name=file_name,
+        file_path=file_path,
+        file_type=file_type,
     )
 
     try:
