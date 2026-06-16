@@ -29,17 +29,28 @@ from app.services.services_documents import (
 
 # All document endpoints share the same prefix and Swagger tag.
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+# Uploaded files are saved locally here, while metadata is saved in PostgreSQL.
 UPLOAD_DIR = Path("uploads")
 
 
 def save_uploaded_file(file: UploadFile, file_bytes: bytes) -> tuple[str, str, str]:
     """Save the uploaded file and return name, path, and content type metadata."""
 
+    # Path(...).name strips any folder parts so clients cannot control our path.
     original_name = Path(file.filename or "uploaded-document.txt").name
+
+    # Prefix with a UUID so two uploads with the same filename do not overwrite.
     stored_name = f"{uuid4()}_{original_name}"
+
+    # Create uploads/ the first time a file is uploaded.
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Save the exact uploaded bytes so file_path points to a real local file.
     file_path = UPLOAD_DIR / stored_name
     file_path.write_bytes(file_bytes)
+
+    # Return metadata that will be saved into kb.documents.
     return original_name, file_path.as_posix(), file.content_type or "text/plain"
 
 
@@ -79,6 +90,7 @@ async def list_documents(
     requests before they reach the service layer.
     """
 
+    # The route does not build SQL. It passes validated inputs to the service.
     return await document_service.list_documents(db, name, category, page, page_size)
 
 
@@ -95,6 +107,7 @@ async def get_document(
     """Return one document by id, translating service errors to HTTP errors."""
 
     try:
+        # The service returns a Pydantic response object if the row exists.
         return await document_service.get_document(db, document_id)
     except DocumentNotFoundError as exc:
         # Keep the service free of FastAPI-specific exceptions.
@@ -126,6 +139,8 @@ async def upload_document(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only UTF-8 text files are supported for now.",
         ) from exc
+
+    # Store the original file and capture metadata for file_name/file_path/file_type.
     file_name, file_path, file_type = save_uploaded_file(file, file_bytes)
 
     # Convert form data plus file content into the same create schema used by
@@ -139,6 +154,7 @@ async def upload_document(
         file_type=file_type,
     )
     try:
+        # The service creates the PostgreSQL row inside kb.documents.
         return await document_service.create_document(db, payload)
     except DocumentCategoryNotFoundError as exc:
         raise HTTPException(
@@ -172,6 +188,8 @@ async def update_document(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only UTF-8 text files are supported for now.",
         ) from exc
+
+    # Updating a document also saves the replacement file and updates metadata.
     file_name, file_path, file_type = save_uploaded_file(file, file_bytes)
 
     # Reuse the update schema so the service can replace fields while preserving
@@ -186,6 +204,7 @@ async def update_document(
     )
 
     try:
+        # The service updates only the existing row matching document_id.
         return await document_service.update_document(db, document_id, payload)
     except DocumentNotFoundError as exc:
         # Route layer decides the HTTP status code for not-found service errors.
@@ -210,6 +229,7 @@ async def delete_document(
     """Delete a document and return an empty 204 response."""
 
     try:
+        # The service checks existence before deleting so missing IDs return 404.
         await document_service.delete_document(db, document_id)
     except DocumentNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))

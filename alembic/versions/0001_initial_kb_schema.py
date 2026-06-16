@@ -22,9 +22,15 @@ SCHEMA = "kb"
 
 
 def upgrade() -> None:
+    """Create the initial database structure for the knowledge-base chatbot."""
+
+    # Create the app schema first because every table below lives inside it.
     op.execute(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}")
+
+    # pgcrypto provides gen_random_uuid(), used by UUID primary key defaults.
     op.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
 
+    # Users are created first because documents and chat sessions can reference them.
     op.create_table(
         "users",
         sa.Column(
@@ -56,6 +62,7 @@ def upgrade() -> None:
         schema=SCHEMA,
     )
 
+    # Categories are seed data for the six knowledge-base standards.
     op.create_table(
         "document_categories",
         sa.Column(
@@ -83,6 +90,7 @@ def upgrade() -> None:
         schema=SCHEMA,
     )
 
+    # Insert the six categories the API enum accepts.
     op.bulk_insert(
         sa.table(
             "document_categories",
@@ -118,6 +126,7 @@ def upgrade() -> None:
         ],
     )
 
+    # Documents store uploaded text, file metadata, category, and future owner.
     op.create_table(
         "documents",
         sa.Column(
@@ -161,6 +170,7 @@ def upgrade() -> None:
         schema=SCHEMA,
     )
 
+    # Chunks are smaller pieces of a document for future AI retrieval/vector search.
     op.create_table(
         "document_chunks",
         sa.Column(
@@ -200,6 +210,7 @@ def upgrade() -> None:
         schema=SCHEMA,
     )
 
+    # Permissions control which normal users can read/write/own each document.
     op.create_table(
         "document_permissions",
         sa.Column(
@@ -246,6 +257,7 @@ def upgrade() -> None:
         schema=SCHEMA,
     )
 
+    # A chat session is one conversation thread owned by a user.
     op.create_table(
         "chat_sessions",
         sa.Column(
@@ -277,6 +289,7 @@ def upgrade() -> None:
         schema=SCHEMA,
     )
 
+    # Chat messages are the user/assistant/system messages in a session.
     op.create_table(
         "chat_messages",
         sa.Column(
@@ -313,6 +326,7 @@ def upgrade() -> None:
         schema=SCHEMA,
     )
 
+    # Message sources connect an AI answer to the document/chunk it used.
     op.create_table(
         "message_sources",
         sa.Column(
@@ -356,6 +370,7 @@ def upgrade() -> None:
         schema=SCHEMA,
     )
 
+    # AI runs keep metadata about each model call for debugging and token tracking.
     op.create_table(
         "ai_runs",
         sa.Column(
@@ -413,6 +428,7 @@ def upgrade() -> None:
         schema=SCHEMA,
     )
 
+    # Indexes speed up common lookups on foreign-key/filter columns.
     op.create_index("idx_documents_category_id", "documents", ["category_id"], schema=SCHEMA)
     op.create_index("idx_documents_created_by", "documents", ["created_by"], schema=SCHEMA)
     op.create_index(
@@ -444,6 +460,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove the initial schema objects in reverse dependency order."""
+
+    # Drop indexes before dropping their tables.
     op.drop_index("idx_ai_runs_session_id", table_name="ai_runs", schema=SCHEMA)
     op.drop_index("idx_message_sources_message_id", table_name="message_sources", schema=SCHEMA)
     op.drop_index("idx_chat_messages_session_id", table_name="chat_messages", schema=SCHEMA)
@@ -461,6 +480,7 @@ def downgrade() -> None:
     op.drop_index("idx_documents_created_by", table_name="documents", schema=SCHEMA)
     op.drop_index("idx_documents_category_id", table_name="documents", schema=SCHEMA)
 
+    # Drop child tables before parent tables so foreign keys do not block removal.
     op.drop_table("ai_runs", schema=SCHEMA)
     op.drop_table("message_sources", schema=SCHEMA)
     op.drop_table("chat_messages", schema=SCHEMA)

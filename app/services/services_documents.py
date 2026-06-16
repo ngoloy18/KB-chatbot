@@ -39,12 +39,14 @@ class DocumentService:
     ) -> DocumentListResponse:
         """Return a paginated list of documents after optional filters."""
 
+        # Build SQL WHERE conditions only for filters the client provided.
         filters = []
         if name is not None:
             filters.append(Document.title.ilike(f"%{name}%"))
         if category is not None:
             filters.append(DocumentCategoryModel.name == category.value)
 
+        # Count first so the response can include the total matching rows.
         total_query = (
             select(func.count())
             .select_from(Document)
@@ -53,6 +55,7 @@ class DocumentService:
         )
         total = await db.scalar(total_query)
 
+        # Load documents plus their category relationship for response serialization.
         documents_query = (
             select(Document)
             .join(DocumentCategoryModel)
@@ -65,6 +68,7 @@ class DocumentService:
         result = await db.scalars(documents_query)
         documents = result.all()
 
+        # Convert ORM objects into the API response shape.
         return DocumentListResponse(
             items=[self._to_response(document) for document in documents],
             total=total or 0,
@@ -89,7 +93,10 @@ class DocumentService:
     ) -> DocumentResponse:
         """Create a new document in PostgreSQL."""
 
+        # Convert the public enum value into the category row's UUID foreign key.
         category = await self._get_category_model(db, payload.category)
+
+        # This object maps to one row in kb.documents.
         document = Document(
             title=payload.name,
             category_id=category.id,
@@ -101,6 +108,7 @@ class DocumentService:
             status="ready",
         )
 
+        # Add stages the object; commit writes the INSERT to PostgreSQL.
         db.add(document)
         await db.commit()
         return self._to_response(document)
@@ -113,8 +121,10 @@ class DocumentService:
     ) -> DocumentResponse:
         """Update only the fields supplied in the request body."""
 
+        # Reuse the helper so missing documents get the same not-found behavior.
         document = await self._get_document_model(db, document_id)
 
+        # Each field is optional for update, so only provided values are changed.
         if payload.name is not None:
             document.title = payload.name
         if payload.content is not None:
@@ -126,16 +136,19 @@ class DocumentService:
         if payload.file_type is not None:
             document.file_type = payload.file_type
         if payload.category is not None:
+            # Category updates need a lookup because documents store category_id.
             category = await self._get_category_model(db, payload.category)
             document.category_id = category.id
             document.category = category
 
+        # Commit writes the UPDATE to PostgreSQL.
         await db.commit()
         return self._to_response(document)
 
     async def delete_document(self, db: AsyncSession, document_id: UUID) -> None:
         """Delete one document or raise if the id is unknown."""
 
+        # Loading first lets us return 404 instead of silently doing nothing.
         document = await self._get_document_model(db, document_id)
         await db.delete(document)
         await db.commit()
@@ -145,6 +158,8 @@ class DocumentService:
         db: AsyncSession,
         document_id: UUID,
     ) -> Document:
+        """Load one document ORM object with its category relationship."""
+
         query = (
             select(Document)
             .options(selectinload(Document.category))
@@ -160,6 +175,8 @@ class DocumentService:
         db: AsyncSession,
         category: DocumentCategory,
     ) -> DocumentCategoryModel:
+        """Load the category row used as a foreign key by documents."""
+
         query = select(DocumentCategoryModel).where(
             DocumentCategoryModel.name == category.value
         )
@@ -171,6 +188,8 @@ class DocumentService:
         return category_model
 
     def _to_response(self, document: Document) -> DocumentResponse:
+        """Convert a SQLAlchemy Document model into the public API schema."""
+
         return DocumentResponse(
             id=document.id,
             name=document.title,
