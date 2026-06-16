@@ -326,4 +326,13 @@ CREATE INDEX IF NOT EXISTS idx_ai_runs_session_id
     ON kb.ai_runs USING btree
     (session_id ASC NULLS LAST)
     TABLESPACE pg_default;
+
+-- Extension: pgcrypto
+
+-- DROP EXTENSION pgcrypto;
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto
+    SCHEMA public
+    VERSION "1.4";
+
     
