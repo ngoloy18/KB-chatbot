@@ -3,19 +3,13 @@ from sqlalchemy import text
 
 from app.db.session import engine
 from app.routes.routes_documents import router as documents_router
+from app.routes.routes_health import router as health_router
 
 # Group every public API endpoint under /api so route modules can keep their
 # own focused prefixes, such as /documents.
 api_router = APIRouter(prefix="/api")
 api_router.include_router(documents_router)
-
-
-@api_router.get("/health", tags=["health"], summary="API health check")
-async def health_check() -> dict[str, str]:
-    """Small endpoint used to confirm the API process is running."""
-
-    # This endpoint does not check the database; startup handles DB connectivity.
-    return {"status": "ok", "service": "developer-kb-chatbot"}
+api_router.include_router(health_router)
 
 
 # FastAPI application metadata appears in the generated Swagger/OpenAPI docs.

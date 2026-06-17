@@ -1,33 +1,25 @@
 from uuid import UUID
+from typing import Any
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.config import DocumentCategory
-from app.models.models_database import Document, DocumentCategoryModel
+from app.mappers.mappers_documents import document_to_response
+from app.repositories.repositories_documents import document_repository
 from app.schemas.schemas_documents import (
     DocumentCreate,
     DocumentListResponse,
     DocumentResponse,
     DocumentUpdate,
 )
-
-
-class DocumentNotFoundError(ValueError):
-    """Raised when a requested document id does not exist."""
-
-    pass
-
-
-class DocumentCategoryNotFoundError(ValueError):
-    """Raised when the configured category rows are missing from the database."""
-
-    pass
+from app.services.exceptions_documents import (
+    DocumentCategoryNotFoundError,
+    DocumentNotFoundError,
+)
 
 
 class DocumentService:
-    """Business logic for managing documents in PostgreSQL."""
+    """Business logic for managing documents."""
 
     async def list_documents(
         self,
@@ -39,39 +31,18 @@ class DocumentService:
     ) -> DocumentListResponse:
         """Return a paginated list of documents after optional filters."""
 
-        # Build SQL WHERE conditions only for filters the client provided.
-        filters = []
-        if name is not None:
-            filters.append(Document.title.ilike(f"%{name}%"))
-        if category is not None:
-            filters.append(DocumentCategoryModel.name == category.value)
-
-        # Count first so the response can include the total matching rows.
-        total_query = (
-            select(func.count())
-            .select_from(Document)
-            .join(DocumentCategoryModel)
-            .where(*filters)
+        documents, total = await document_repository.list_documents(
+            db=db,
+            name=name,
+            category=category,
+            page=page,
+            page_size=page_size,
         )
-        total = await db.scalar(total_query)
 
-        # Load documents plus their category relationship for response serialization.
-        documents_query = (
-            select(Document)
-            .join(DocumentCategoryModel)
-            .options(selectinload(Document.category))
-            .where(*filters)
-            .order_by(Document.created_at.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-        )
-        result = await db.scalars(documents_query)
-        documents = result.all()
-
-        # Convert ORM objects into the API response shape.
+        # Convert repository results into the API response shape.
         return DocumentListResponse(
-            items=[self._to_response(document) for document in documents],
-            total=total or 0,
+            items=[document_to_response(document) for document in documents],
+            total=total,
             page=page,
             page_size=page_size,
         )
@@ -83,35 +54,29 @@ class DocumentService:
     ) -> DocumentResponse:
         """Return one document or raise a service-level not-found error."""
 
-        document = await self._get_document_model(db, document_id)
-        return self._to_response(document)
+        document = await self._get_document_or_raise(db, document_id)
+        return document_to_response(document)
 
     async def create_document(
         self,
         db: AsyncSession,
         payload: DocumentCreate,
     ) -> DocumentResponse:
-        """Create a new document in PostgreSQL."""
+        """Create a new document."""
 
         # Convert the public enum value into the category row's UUID foreign key.
-        category = await self._get_category_model(db, payload.category)
+        category = await document_repository.get_category_by_name(db, payload.category)
+        if category is None:
+            raise DocumentCategoryNotFoundError(
+                f"Document category {payload.category.value} was not found in the database."
+            )
 
-        # This object maps to one row in kb.documents.
-        document = Document(
-            title=payload.name,
-            category_id=category.id,
+        document = await document_repository.create_document(
+            db=db,
+            payload=payload,
             category=category,
-            file_name=payload.file_name,
-            file_path=payload.file_path,
-            file_type=payload.file_type,
-            content=payload.content,
-            status="ready",
         )
-
-        # Add stages the object; commit writes the INSERT to PostgreSQL.
-        db.add(document)
-        await db.commit()
-        return self._to_response(document)
+        return document_to_response(document)
 
     async def update_document(
         self,
@@ -122,84 +87,43 @@ class DocumentService:
         """Update only the fields supplied in the request body."""
 
         # Reuse the helper so missing documents get the same not-found behavior.
-        document = await self._get_document_model(db, document_id)
+        document = await self._get_document_or_raise(db, document_id)
 
-        # Each field is optional for update, so only provided values are changed.
-        if payload.name is not None:
-            document.title = payload.name
-        if payload.content is not None:
-            document.content = payload.content
-        if payload.file_name is not None:
-            document.file_name = payload.file_name
-        if payload.file_path is not None:
-            document.file_path = payload.file_path
-        if payload.file_type is not None:
-            document.file_type = payload.file_type
+        category = None
         if payload.category is not None:
             # Category updates need a lookup because documents store category_id.
-            category = await self._get_category_model(db, payload.category)
-            document.category_id = category.id
-            document.category = category
+            category = await document_repository.get_category_by_name(
+                db,
+                payload.category,
+            )
+            if category is None:
+                raise DocumentCategoryNotFoundError(
+                    f"Document category {payload.category.value} was not found in the database."
+                )
 
-        # Commit writes the UPDATE to PostgreSQL.
-        await db.commit()
-        return self._to_response(document)
+        document = await document_repository.update_document(
+            db=db,
+            document=document,
+            payload=payload,
+            category=category,
+        )
+        return document_to_response(document)
 
     async def delete_document(self, db: AsyncSession, document_id: UUID) -> None:
         """Delete one document or raise if the id is unknown."""
 
         # Loading first lets us return 404 instead of silently doing nothing.
-        document = await self._get_document_model(db, document_id)
-        await db.delete(document)
-        await db.commit()
+        document = await self._get_document_or_raise(db, document_id)
+        await document_repository.delete_document(db, document)
 
-    async def _get_document_model(
+    async def _get_document_or_raise(
         self,
         db: AsyncSession,
         document_id: UUID,
-    ) -> Document:
-        """Load one document ORM object with its category relationship."""
+    ) -> Any:
+        """Load one document or raise a service-level not-found error."""
 
-        query = (
-            select(Document)
-            .options(selectinload(Document.category))
-            .where(Document.id == document_id)
-        )
-        document = await db.scalar(query)
+        document = await document_repository.get_document_by_id(db, document_id)
         if document is None:
             raise DocumentNotFoundError(f"Document {document_id} was not found.")
         return document
-
-    async def _get_category_model(
-        self,
-        db: AsyncSession,
-        category: DocumentCategory,
-    ) -> DocumentCategoryModel:
-        """Load the category row used as a foreign key by documents."""
-
-        query = select(DocumentCategoryModel).where(
-            DocumentCategoryModel.name == category.value
-        )
-        category_model = await db.scalar(query)
-        if category_model is None:
-            raise DocumentCategoryNotFoundError(
-                f"Document category {category.value} was not found in the database."
-            )
-        return category_model
-
-    def _to_response(self, document: Document) -> DocumentResponse:
-        """Convert a SQLAlchemy Document model into the public API schema."""
-
-        return DocumentResponse(
-            id=document.id,
-            name=document.title,
-            category=DocumentCategory(document.category.name),
-            file_name=document.file_name,
-            file_path=document.file_path,
-            file_type=document.file_type,
-            content=document.content,
-            created_at=document.created_at,
-        )
-
-
-document_service = DocumentService()

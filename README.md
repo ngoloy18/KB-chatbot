@@ -137,14 +137,25 @@ http://127.0.0.1:8000/docs
 app/
   core/       shared config and enums
   db/         SQLAlchemy engine, session, and Base
-  models/     SQLAlchemy ORM models
+  models/     split SQLAlchemy ORM model files
+  repositories/ database query layer
   routes/     FastAPI routers
   schemas/    Pydantic request and response models
-  services/   business logic and database queries
+  services/   business logic
   main.py     FastAPI app entrypoint
 alembic/      database migrations
 tests/        local test scripts
 ```
+
+The request flow is:
+
+```text
+routes -> services -> repositories -> database
+```
+
+Routes handle HTTP, file uploads, and error-to-status-code translation.
+Services contain business logic and response conversion.
+Repositories contain SQLAlchemy queries and database commits.
 
 ## Endpoints
 

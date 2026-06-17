@@ -21,10 +21,10 @@ from app.schemas.schemas_documents import (
     DocumentUploadRequest,
     DocumentUpdate,
 )
-from app.services.services_documents import (
+from app.services import document_service
+from app.services.exceptions_documents import (
     DocumentCategoryNotFoundError,
     DocumentNotFoundError,
-    document_service,
 )
 
 # All document endpoints share the same prefix and Swagger tag.
