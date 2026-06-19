@@ -4,13 +4,13 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DocumentCategory
-from app.mappers.mappers_documents import document_to_response
 from app.repositories.repositories_documents import document_repository
 from app.schemas.schemas_documents import (
     DocumentCreate,
     DocumentListResponse,
     DocumentResponse,
     DocumentUpdate,
+    document_to_response,
 )
 from app.services.exceptions_documents import (
     DocumentCategoryNotFoundError,
