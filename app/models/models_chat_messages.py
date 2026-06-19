@@ -1,6 +1,3 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import CheckConstraint, ForeignKey, String, Text
@@ -10,11 +7,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.models.constants import SCHEMA_NAME
 from app.models.mixins import TimestampMixin
-
-
-if TYPE_CHECKING:
-    from app.models.models_chat_sessions import ChatSession
-    from app.models.models_message_sources import MessageSource
 
 
 class ChatMessage(TimestampMixin, Base):

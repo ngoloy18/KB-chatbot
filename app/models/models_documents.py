@@ -1,6 +1,3 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import CheckConstraint, ForeignKey, String, Text
@@ -11,14 +8,6 @@ from app.core.config import DocumentCategory
 from app.db.base import Base
 from app.models.constants import SCHEMA_NAME
 from app.models.mixins import TimestampMixin
-
-
-if TYPE_CHECKING:
-    from app.models.models_document_categories import DocumentCategoryModel
-    from app.models.models_document_chunks import DocumentChunk
-    from app.models.models_document_permissions import DocumentPermission
-    from app.models.models_message_sources import MessageSource
-    from app.models.models_users import User
 
 
 class Document(TimestampMixin, Base):
