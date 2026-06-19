@@ -1,13 +1,16 @@
 from fastapi import APIRouter, FastAPI
 from sqlalchemy import text
 
+from app.core.exception_handlers import register_exception_handlers
 from app.db.session import engine
+from app.routes.routes_auth import router as auth_router
 from app.routes.routes_documents import router as documents_router
 from app.routes.routes_health import router as health_router
 
 # Group every public API endpoint under /api so route modules can keep their
 # own focused prefixes, such as /documents.
 api_router = APIRouter(prefix="/api")
+api_router.include_router(auth_router)
 api_router.include_router(documents_router)
 api_router.include_router(health_router)
 
@@ -15,9 +18,10 @@ api_router.include_router(health_router)
 # FastAPI application metadata appears in the generated Swagger/OpenAPI docs.
 app = FastAPI(
     title="Developer KB Chatbot API",
-    version="0.1.2",
-    description="Week 2 Fastapi with SQLAlchemy.",
+    version="0.2.0",
+    description="Week 3 FastAPI with SQLAlchemy, JWT auth, and protected uploads.",
 )
+register_exception_handlers(app)
 
 
 @app.on_event("startup")

@@ -8,6 +8,10 @@ from app.core.config import DocumentCategory
 from app.models.models_database import Document
 
 
+MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024
+ALLOWED_UPLOAD_EXTENSIONS = {".md"}
+
+
 class DocumentCreate(BaseModel):
     """Request body used after upload data has been converted into text."""
 
@@ -67,7 +71,6 @@ class DocumentResponse(BaseModel):
     category: DocumentCategory
     # File metadata helps prove file_name/file_path/file_type were saved.
     file_name: str | None = None
-    file_path: str | None = None
     file_type: str | None = None
     content: str
     created_at: datetime
@@ -92,7 +95,6 @@ def document_to_response(document: Document) -> DocumentResponse:
         name=document.title,
         category=DocumentCategory(document.category.name),
         file_name=document.file_name,
-        file_path=document.file_path,
         file_type=document.file_type,
         content=document.content,
         created_at=document.created_at,

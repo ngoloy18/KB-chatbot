@@ -28,6 +28,13 @@ class Settings:
     def __init__(self) -> None:
         self.database_url = os.getenv("DATABASE_URL", "")
         self.database_echo = os.getenv("DATABASE_ECHO", "false").lower() == "true"
+        self.jwt_secret = os.getenv("JWT_SECRET", "")
+        self.jwt_algorithm = os.getenv("JWT_ALGORITHM", "HS256")
+        self.access_token_expire_minutes = int(
+            os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")
+        )
+        self.initial_admin_email = os.getenv("INITIAL_ADMIN_EMAIL", "")
+        self.initial_admin_password = os.getenv("INITIAL_ADMIN_PASSWORD", "")
 
 
 settings = Settings()

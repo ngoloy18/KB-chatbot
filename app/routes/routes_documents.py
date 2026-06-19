@@ -14,12 +14,16 @@ from uuid import UUID, uuid4
 
 from app.core.config import DocumentCategory
 from app.db.session import get_db
+from app.dependencies.auth import require_admin
+from app.models.models_database import User
 from app.schemas.schemas_documents import (
+    ALLOWED_UPLOAD_EXTENSIONS,
     DocumentCreate,
     DocumentListResponse,
     DocumentResponse,
     DocumentUploadRequest,
     DocumentUpdate,
+    MAX_UPLOAD_SIZE_BYTES,
 )
 from app.services import document_service
 from app.services.exceptions_documents import (
@@ -52,6 +56,57 @@ def save_uploaded_file(file: UploadFile, file_bytes: bytes) -> tuple[str, str, s
 
     # Return metadata that will be saved into kb.documents.
     return original_name, file_path.as_posix(), file.content_type or "text/plain"
+
+
+def validate_admin_upload(file: UploadFile, file_bytes: bytes) -> None:
+    """Validate Week 3 admin upload file rules."""
+
+    original_name = Path(file.filename or "").name
+    extension = Path(original_name).suffix.lower()
+    if extension not in ALLOWED_UPLOAD_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only .md files are allowed.",
+        )
+    if len(file_bytes) > MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size must be 10MB or smaller.",
+        )
+
+
+async def build_document_payload_from_upload(
+    request: DocumentUploadRequest,
+    file: UploadFile,
+    require_markdown: bool = False,
+) -> DocumentCreate:
+    """Read an upload, validate it, save it, and build a create payload."""
+
+    # UploadFile exposes async reads, which keeps this route compatible with
+    # FastAPI's async request handling.
+    file_bytes = await file.read()
+    if require_markdown:
+        validate_admin_upload(file, file_bytes)
+
+    try:
+        # Store document content as text; non-UTF-8 files are rejected clearly.
+        content = file_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only UTF-8 text files are supported.",
+        ) from exc
+
+    # Store the original file and capture metadata for file_name/file_path/file_type.
+    file_name, file_path, file_type = save_uploaded_file(file, file_bytes)
+    return DocumentCreate(
+        name=request.name,
+        category=request.category,
+        content=content,
+        file_name=file_name,
+        file_path=file_path,
+        file_type=file_type,
+    )
 
 
 @router.get(
@@ -125,36 +180,46 @@ async def upload_document(
     request: DocumentUploadRequest = Depends(DocumentUploadRequest.as_form),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
 ) -> DocumentResponse:
-    """Create a document from a UTF-8 text file uploaded as multipart form data."""
+    """Create a document from a validated admin markdown upload."""
 
-    # UploadFile exposes async reads, which keeps this route compatible with
-    # FastAPI's async request handling.
-    file_bytes = await file.read()
-    try:
-        # Store document content as text; non-UTF-8 files are rejected clearly.
-        content = file_bytes.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only UTF-8 text files are supported for now.",
-        ) from exc
-
-    # Store the original file and capture metadata for file_name/file_path/file_type.
-    file_name, file_path, file_type = save_uploaded_file(file, file_bytes)
-
-    # Convert form data plus file content into the same create schema used by
-    # the service, so the service does not need to understand file uploads.
-    payload = DocumentCreate(
-        name=request.name,
-        category=request.category,
-        content=content,
-        file_name=file_name,
-        file_path=file_path,
-        file_type=file_type,
+    payload = await build_document_payload_from_upload(
+        request=request,
+        file=file,
+        require_markdown=True,
     )
     try:
         # The service creates the PostgreSQL row inside kb.documents.
+        return await document_service.create_document(db, payload)
+    except DocumentCategoryNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/upload",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload a markdown document as admin",
+    description="Admin-only upload endpoint that accepts .md files up to 10MB.",
+)
+async def upload_document_as_admin(
+    request: DocumentUploadRequest = Depends(DocumentUploadRequest.as_form),
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+) -> DocumentResponse:
+    """Create a document from a validated admin markdown upload."""
+
+    payload = await build_document_payload_from_upload(
+        request=request,
+        file=file,
+        require_markdown=True,
+    )
+    try:
         return await document_service.create_document(db, payload)
     except DocumentCategoryNotFoundError as exc:
         raise HTTPException(
@@ -174,33 +239,24 @@ async def update_document(
     request: DocumentUploadRequest = Depends(DocumentUploadRequest.as_form),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
 ) -> DocumentResponse:
     """Replace a document's file content while keeping its id and created_at."""
 
-    # PUT uses multipart form data here because the replacement content comes
-    # from a newly uploaded file, not from a JSON request body.
-    file_bytes = await file.read()
-    try:
-        # The service stores plain text content, so uploaded files must be UTF-8.
-        content = file_bytes.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only UTF-8 text files are supported for now.",
-        ) from exc
-
-    # Updating a document also saves the replacement file and updates metadata.
-    file_name, file_path, file_type = save_uploaded_file(file, file_bytes)
-
     # Reuse the update schema so the service can replace fields while preserving
     # server-owned data such as id and created_at.
+    create_payload = await build_document_payload_from_upload(
+        request=request,
+        file=file,
+        require_markdown=True,
+    )
     payload = DocumentUpdate(
-        name=request.name,
-        category=request.category,
-        content=content,
-        file_name=file_name,
-        file_path=file_path,
-        file_type=file_type,
+        name=create_payload.name,
+        category=create_payload.category,
+        content=create_payload.content,
+        file_name=create_payload.file_name,
+        file_path=create_payload.file_path,
+        file_type=create_payload.file_type,
     )
 
     try:
@@ -225,6 +281,7 @@ async def update_document(
 async def delete_document(
     document_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
 ) -> Response:
     """Delete a document and return an empty 204 response."""
 
