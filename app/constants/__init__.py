@@ -1,5 +1,21 @@
 """Shared application constants."""
 
 from app.constants.constants_database import SCHEMA_NAME
+from app.constants.constants_permissions import (
+    DOCUMENT_DELETE_PERMISSIONS,
+    DOCUMENT_PERMISSION_OWNER,
+    DOCUMENT_PERMISSION_READ,
+    DOCUMENT_PERMISSION_WRITE,
+    DOCUMENT_READ_PERMISSIONS,
+    DOCUMENT_WRITE_PERMISSIONS,
+)
 
-__all__ = ["SCHEMA_NAME"]
+__all__ = [
+    "DOCUMENT_DELETE_PERMISSIONS",
+    "DOCUMENT_PERMISSION_OWNER",
+    "DOCUMENT_PERMISSION_READ",
+    "DOCUMENT_PERMISSION_WRITE",
+    "DOCUMENT_READ_PERMISSIONS",
+    "DOCUMENT_WRITE_PERMISSIONS",
+    "SCHEMA_NAME",
+]

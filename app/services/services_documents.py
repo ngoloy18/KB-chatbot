@@ -1,9 +1,14 @@
 from uuid import UUID
-from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.constants_permissions import (
+    DOCUMENT_DELETE_PERMISSIONS,
+    DOCUMENT_READ_PERMISSIONS,
+    DOCUMENT_WRITE_PERMISSIONS,
+)
 from app.core.config import DocumentCategory
+from app.models.models_database import Document
 from app.repositories.repositories_documents import document_repository
 from app.repositories.repositories_users import user_repository
 from app.schemas.schemas_documents import (
@@ -74,7 +79,7 @@ class DocumentService:
                 db,
                 document_id,
                 current_user_id,
-                ["read", "write", "owner"],
+                DOCUMENT_READ_PERMISSIONS,
             )
             if not user_can_read:
                 raise DocumentAccessDeniedError("You do not have access to this document.")
@@ -120,7 +125,7 @@ class DocumentService:
                 db,
                 document_id,
                 current_user_id,
-                ["write", "owner"],
+                DOCUMENT_WRITE_PERMISSIONS,
             )
             if not user_can_write:
                 raise DocumentAccessDeniedError("Write permission is required.")
@@ -163,7 +168,7 @@ class DocumentService:
                 db,
                 document_id,
                 current_user_id,
-                ["owner"],
+                DOCUMENT_DELETE_PERMISSIONS,
             )
             if not user_can_delete:
                 raise DocumentAccessDeniedError("Owner permission is required.")
@@ -222,7 +227,7 @@ class DocumentService:
         self,
         db: AsyncSession,
         document_id: UUID,
-    ) -> Any:
+    ) -> Document:
         """Load one document or raise a service-level not-found error."""
 
         document = await document_repository.get_document_by_id(db, document_id)

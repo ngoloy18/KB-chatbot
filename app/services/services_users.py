@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+from secrets import token_urlsafe
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,6 +62,8 @@ class UserService:
             user.email = payload.email
             # Changing email means the new address should be verified again.
             user.is_email_verified = False
+            user.email_verification_token = token_urlsafe(32)
+            user.email_verification_sent_at = datetime.now(UTC)
 
         if payload.full_name is not None:
             user.full_name = payload.full_name

@@ -8,7 +8,10 @@ class UserUpdateRequest(BaseModel):
     """Admin request body for editing a user account."""
 
     # All fields are optional so admins can update only one user property.
-    email: EmailStr | None = None
+    email: EmailStr | None = Field(
+        default=None,
+        description="Changing email marks the user unverified and creates a new verification token.",
+    )
     full_name: str | None = Field(default=None, max_length=255)
     role: str | None = Field(default=None, pattern="^(admin|user)$")
     is_active: bool | None = None

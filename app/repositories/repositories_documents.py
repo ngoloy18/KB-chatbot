@@ -4,6 +4,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.constants.constants_permissions import DOCUMENT_READ_PERMISSIONS
 from app.core.config import DocumentCategory
 from app.models.models_database import Document, DocumentCategoryModel, DocumentPermission
 from app.schemas.schemas_documents import DocumentCreate, DocumentUpdate
@@ -37,7 +38,7 @@ class DocumentRepository:
                     select(DocumentPermission.document_id).where(
                         and_(
                             DocumentPermission.user_id == user_id,
-                            DocumentPermission.permission.in_(["read", "write", "owner"]),
+                            DocumentPermission.permission.in_(DOCUMENT_READ_PERMISSIONS),
                         )
                     )
                 )

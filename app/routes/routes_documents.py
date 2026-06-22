@@ -57,6 +57,16 @@ def save_uploaded_file(file: UploadFile, file_bytes: bytes) -> tuple[str, str, s
     return original_name, file_path.as_posix(), file.content_type or "text/plain"
 
 
+def cleanup_saved_upload(file_path: str | None) -> None:
+    """Remove a saved upload if database work fails afterward."""
+
+    if file_path is None:
+        return
+    saved_path = Path(file_path)
+    if saved_path.exists():
+        saved_path.unlink()
+
+
 def validate_admin_upload(file: UploadFile, file_bytes: bytes) -> None:
     """Validate Week 3 admin upload file rules."""
 
@@ -186,36 +196,6 @@ async def get_document(
 
 
 @router.post(
-    "",
-    response_model=DocumentResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Upload a document file and create a document",
-    description="Create a document from a text file uploaded through a multipart form.",
-)
-async def upload_document(
-    request: DocumentUploadRequest = Depends(DocumentUploadRequest.as_form),
-    file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-    current_admin: User = Depends(require_admin),
-) -> DocumentResponse:
-    """Create a document from a validated admin markdown upload."""
-
-    payload = await build_document_payload_from_upload(
-        request=request,
-        file=file,
-        require_markdown=True,
-    )
-    try:
-        # The service creates the PostgreSQL row inside kb.documents.
-        return await document_service.create_document(db, payload)
-    except DocumentCategoryNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(exc),
-        ) from exc
-
-
-@router.post(
     "/upload",
     response_model=DocumentResponse,
     status_code=status.HTTP_201_CREATED,
@@ -238,10 +218,14 @@ async def upload_document_as_admin(
     try:
         return await document_service.create_document(db, payload)
     except DocumentCategoryNotFoundError as exc:
+        cleanup_saved_upload(payload.file_path)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
         ) from exc
+    except Exception:
+        cleanup_saved_upload(payload.file_path)
+        raise
 
 
 @router.put(

@@ -202,7 +202,6 @@ Repositories contain SQLAlchemy queries and database commits.
 - `GET /api/documents/{document_id}/permissions` lists access rules for a document as admin.
 - `PUT /api/documents/{document_id}/permissions` grants or updates one user's access as admin.
 - `DELETE /api/documents/{document_id}/permissions/{user_id}` revokes one user's access as admin.
-- `POST /api/documents` creates a document from an admin markdown upload.
 - `POST /api/documents/upload` creates a document from an admin markdown upload.
 - `PUT /api/documents/{document_id}` replaces a document as admin or a user with `write`/`owner` permission.
 - `DELETE /api/documents/{document_id}` deletes a document as admin or a user with `owner` permission.
