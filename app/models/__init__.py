@@ -7,7 +7,6 @@ from app.models.models_database import (
     DocumentChunk,
     DocumentPermission,
     MessageSource,
-    SCHEMA_NAME,
     User,
 )
 
@@ -20,6 +19,5 @@ __all__ = [
     "DocumentChunk",
     "DocumentPermission",
     "MessageSource",
-    "SCHEMA_NAME",
     "User",
 ]

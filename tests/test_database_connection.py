@@ -9,6 +9,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.core.config import DocumentCategory, settings
+from app.constants.constants_database import SCHEMA_NAME
 from app.db.session import engine
 
 
@@ -49,13 +50,14 @@ async def check_database_connection() -> None:
                 SELECT EXISTS (
                     SELECT 1
                     FROM information_schema.schemata
-                    WHERE schema_name = 'kb'
+                    WHERE schema_name = :schema_name
                 )
                 """
-            )
+            ),
+            {"schema_name": SCHEMA_NAME},
         )
         if not schema_exists:
-            raise AssertionError("Schema 'kb' does not exist.")
+            raise AssertionError(f"Schema '{SCHEMA_NAME}' does not exist.")
 
         # Read actual table names from PostgreSQL metadata.
         table_rows = await connection.execute(
@@ -63,9 +65,10 @@ async def check_database_connection() -> None:
                 """
                 SELECT table_name
                 FROM information_schema.tables
-                WHERE table_schema = 'kb'
+                WHERE table_schema = :schema_name
                 """
-            )
+            ),
+            {"schema_name": SCHEMA_NAME},
         )
         actual_tables = {row.table_name for row in table_rows}
 
@@ -73,12 +76,12 @@ async def check_database_connection() -> None:
         missing_tables = EXPECTED_TABLES - actual_tables
         if missing_tables:
             raise AssertionError(
-                f"Missing table(s) in schema 'kb': {sorted(missing_tables)}"
+                f"Missing table(s) in schema '{SCHEMA_NAME}': {sorted(missing_tables)}"
             )
 
         # The document API depends on these seed category rows.
         category_rows = await connection.execute(
-            text("SELECT name FROM kb.document_categories")
+            text(f"SELECT name FROM {SCHEMA_NAME}.document_categories")
         )
         actual_categories = {row.name for row in category_rows}
         expected_categories = {category.value for category in DocumentCategory}
@@ -92,7 +95,7 @@ async def check_database_connection() -> None:
             )
 
     print(f"Database connection OK: connected to '{database_name}'.")
-    print("Schema OK: found kb schema and all 9 expected tables.")
+    print(f"Schema OK: found {SCHEMA_NAME} schema and all 9 expected tables.")
     print("Categories OK: found all 6 document categories.")
 
 

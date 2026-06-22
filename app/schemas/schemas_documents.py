@@ -8,10 +8,6 @@ from app.core.config import DocumentCategory
 from app.models.models_database import Document
 
 
-MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024
-ALLOWED_UPLOAD_EXTENSIONS = {".md"}
-
-
 class DocumentCreate(BaseModel):
     """Request body used after upload data has been converted into text."""
 

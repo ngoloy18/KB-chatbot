@@ -11,6 +11,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
+from app.core.config import settings
+
 
 revision: str = "0001_initial_kb_schema"
 down_revision: str | None = None
@@ -18,7 +20,9 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-SCHEMA = "kb"
+# Use the same schema setting as the SQLAlchemy models so new environments can
+# choose their own schema name without editing migration code.
+SCHEMA = settings.database_schema
 
 
 def upgrade() -> None:

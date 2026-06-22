@@ -12,18 +12,16 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID, uuid4
 
-from app.core.config import DocumentCategory
+from app.core.config import DocumentCategory, settings
 from app.db.session import get_db
 from app.dependencies.auth import require_admin
 from app.models.models_database import User
 from app.schemas.schemas_documents import (
-    ALLOWED_UPLOAD_EXTENSIONS,
     DocumentCreate,
     DocumentListResponse,
     DocumentResponse,
     DocumentUploadRequest,
     DocumentUpdate,
-    MAX_UPLOAD_SIZE_BYTES,
 )
 from app.services import document_service
 from app.services.exceptions_documents import (
@@ -35,7 +33,7 @@ from app.services.exceptions_documents import (
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 # Uploaded files are saved locally here, while metadata is saved in PostgreSQL.
-UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR = Path(settings.upload_dir)
 
 
 def save_uploaded_file(file: UploadFile, file_bytes: bytes) -> tuple[str, str, str]:
@@ -63,15 +61,15 @@ def validate_admin_upload(file: UploadFile, file_bytes: bytes) -> None:
 
     original_name = Path(file.filename or "").name
     extension = Path(original_name).suffix.lower()
-    if extension not in ALLOWED_UPLOAD_EXTENSIONS:
+    if extension not in settings.allowed_upload_extensions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only .md files are allowed.",
+            detail=f"Only these file types are allowed: {sorted(settings.allowed_upload_extensions)}.",
         )
-    if len(file_bytes) > MAX_UPLOAD_SIZE_BYTES:
+    if len(file_bytes) > settings.max_upload_size_bytes:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File size must be 10MB or smaller.",
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File size must be {settings.max_upload_size_mb}MB or smaller.",
         )
 
 

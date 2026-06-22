@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.config import DocumentCategory
 from app.db.base import Base
-from app.models.constants import SCHEMA_NAME
+from app.constants.constants_database import SCHEMA_NAME
 from app.models.mixins import TimestampMixin
 
 

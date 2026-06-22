@@ -61,13 +61,21 @@ The six document categories are:
 Create a local `.env` file from `.env.example`:
 
 ```env
+APP_NAME=developer-kb-chatbot
+APP_TITLE=Developer KB Chatbot API
+APP_VERSION=0.2.0
+APP_DESCRIPTION=FastAPI with SQLAlchemy, JWT auth, and protected uploads.
 DATABASE_URL=postgresql+asyncpg://postgres:your_password@localhost:5123/chatbot_db
 DATABASE_ECHO=false
+DATABASE_SCHEMA=kb
 JWT_SECRET=change_me_to_a_long_random_secret
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
 INITIAL_ADMIN_EMAIL=admin@example.com
 INITIAL_ADMIN_PASSWORD=change_me
+UPLOAD_DIR=uploads
+MAX_UPLOAD_SIZE_MB=10
+ALLOWED_UPLOAD_EXTENSIONS=.md
 ```
 
 Use your real PostgreSQL password in `.env`. Do not commit `.env`.
