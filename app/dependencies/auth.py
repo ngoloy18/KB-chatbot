@@ -10,6 +10,8 @@ from app.models.models_database import User
 from app.repositories.repositories_users import user_repository
 
 
+# HTTPBearer reads the Authorization: Bearer <token> header from each request.
+# auto_error=False lets this file return one clear custom 401 error.
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
@@ -28,11 +30,13 @@ async def get_current_user(
         raise auth_error
 
     try:
+        # The token subject is the user id written by create_access_token().
         payload = decode_access_token(credentials.credentials)
         user_id = UUID(str(payload.get("sub")))
     except (TypeError, ValueError):
         raise auth_error
 
+    # Loading the user from the database catches deleted or disabled accounts.
     user = await user_repository.get_by_id(db, user_id)
     if user is None or not user.is_active:
         raise auth_error
@@ -42,6 +46,7 @@ async def get_current_user(
 async def require_admin(current_user: User = Depends(get_current_user)) -> User:
     """Require the authenticated user to have admin role."""
 
+    # Route functions can depend on this helper instead of repeating role checks.
     if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

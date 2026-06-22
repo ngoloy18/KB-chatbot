@@ -34,6 +34,7 @@ async def register_user(
     """Register a normal user account; public registration never creates admins."""
 
     try:
+        # The service owns registration rules; the route only converts errors to HTTP.
         return await auth_service.register_user(db, payload)
     except DuplicateEmailError as exc:
         raise HTTPException(
@@ -54,6 +55,7 @@ async def login(
     """Verify credentials and return a Bearer access token."""
 
     try:
+        # Clients copy this token into Authorization: Bearer <token>.
         return await auth_service.login(db, payload)
     except InvalidCredentialsError as exc:
         raise HTTPException(
@@ -76,4 +78,5 @@ async def login(
 async def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
     """Return the user represented by the Bearer token."""
 
+    # get_current_user already verified the token and loaded the database user.
     return UserResponse.model_validate(current_user)

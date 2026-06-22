@@ -7,6 +7,8 @@ from passlib.context import CryptContext
 from app.core.config import settings
 
 
+# Passlib hides bcrypt details behind one context so the rest of the app only
+# needs to call hash_password() and verify_password().
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
@@ -31,6 +33,8 @@ def create_access_token(user_id: UUID, role: str) -> str:
     expires_at = datetime.now(UTC) + timedelta(
         minutes=settings.access_token_expire_minutes
     )
+    # "sub" is the standard JWT subject field. Here it stores our user's UUID.
+    # Role is included so admin checks can read the user's permission level.
     payload = {
         "sub": str(user_id),
         "role": role,
@@ -46,6 +50,7 @@ def decode_access_token(token: str) -> dict:
         raise RuntimeError("JWT_SECRET is missing. Add it to your .env file.")
 
     try:
+        # jwt.decode checks the signature and the exp timestamp before returning data.
         return jwt.decode(
             token,
             settings.jwt_secret,

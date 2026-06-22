@@ -20,10 +20,12 @@ class AuthService:
     ) -> UserResponse:
         """Create a normal user account."""
 
+        # Email must stay unique because login uses email as the account id.
         existing_user = await user_repository.get_by_email(db, payload.email)
         if existing_user is not None:
             raise DuplicateEmailError("A user with this email already exists.")
 
+        # Only the hashed password is saved; the plaintext password is never stored.
         user = await user_repository.create_user(
             db=db,
             email=payload.email,
@@ -37,11 +39,14 @@ class AuthService:
         """Verify credentials and return a JWT access token."""
 
         user = await user_repository.get_by_email(db, payload.email)
+        # Use the same error for missing users and wrong passwords so attackers
+        # cannot easily guess which emails are registered.
         if user is None or not verify_password(payload.password, user.hashed_password):
             raise InvalidCredentialsError("Incorrect email or password.")
         if not user.is_active:
             raise InactiveUserError("This user is inactive.")
 
+        # The token is what Swagger/clients send later in Authorization headers.
         token = create_access_token(user_id=user.id, role=user.role)
         return TokenResponse(access_token=token)
 

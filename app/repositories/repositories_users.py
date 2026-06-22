@@ -12,6 +12,7 @@ class UserRepository:
     async def get_by_email(self, db: AsyncSession, email: str) -> User | None:
         """Return one user by email if it exists."""
 
+        # db.scalar returns the first selected User object or None.
         query = select(User).where(User.email == email)
         return await db.scalar(query)
 
@@ -31,6 +32,7 @@ class UserRepository:
     ) -> User:
         """Create one user row."""
 
+        # Repository owns ORM object creation so services do not depend on table details.
         user = User(
             email=email,
             hashed_password=hashed_password,
@@ -39,6 +41,7 @@ class UserRepository:
             is_active=True,
         )
         db.add(user)
+        # commit writes the INSERT to PostgreSQL.
         await db.commit()
         return user
 

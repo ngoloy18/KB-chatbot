@@ -7,7 +7,9 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 class RegisterRequest(BaseModel):
     """Request body for normal user registration."""
 
+    # EmailStr validates email format before the service runs.
     email: EmailStr
+    # Password limits prevent empty passwords and unreasonably large request bodies.
     password: str = Field(..., min_length=8, max_length=128)
     full_name: str | None = Field(default=None, max_length=255)
 
@@ -29,6 +31,7 @@ class TokenResponse(BaseModel):
 class UserResponse(BaseModel):
     """Safe user shape returned by auth endpoints."""
 
+    # Lets Pydantic build this response directly from a SQLAlchemy User object.
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
