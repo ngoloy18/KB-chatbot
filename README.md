@@ -1,58 +1,51 @@
 # KB-chatbot
 
-Developer knowledge-base chatbot project.
+Developer knowledge-base chatbot API built with FastAPI, PostgreSQL, async
+SQLAlchemy, and Alembic.
 
-## Week 1: FastAPI Foundations
+## Current Status
 
-This week implements the document-management API foundation that later chatbot
-features can build on.
+This project is on Week 2: PostgreSQL + SQLAlchemy.
+
+The document API now stores uploaded documents in PostgreSQL instead of an
+in-memory dictionary. Data should stay available after the API server restarts.
 
 ## Requirements
 
 - Python 3.11 or newer
+- PostgreSQL running locally
 - `pip`
 - Project dependencies from `requirements.txt`
 
-## Run locally
+## Database
 
-```powershell
-python --version
-python -m pip install -r requirements.txt
-python -m uvicorn app.main:app --reload
-```
-
-If your machine uses the `py` launcher on Windows, you can also run:
-
-```powershell
-py -3.11 -m pip install -r requirements.txt
-py -3.11 -m uvicorn app.main:app --reload
-```
-
-Open Swagger UI at `http://127.0.0.1:8000/docs`.
-
-## Optional virtual environment
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-## Project structure
+The app expects a PostgreSQL database named:
 
 ```text
-app/
-  core/       shared config and enums
-  routes/     FastAPI routers
-  schemas/    Pydantic request and response models
-  services/   business logic and in-memory storage
-  main.py     FastAPI app entrypoint
+chatbot_db
 ```
 
-## Document categories
+The project tables live in the PostgreSQL schema:
 
-The `category` field accepts these six KB standards:
+```text
+kb
+```
+
+The database currently uses these 9 tables:
+
+```text
+kb.users
+kb.document_categories
+kb.documents
+kb.document_chunks
+kb.document_permissions
+kb.chat_sessions
+kb.chat_messages
+kb.message_sources
+kb.ai_runs
+```
+
+The six document categories are:
 
 - `coding-convention`
 - `git-flow`
@@ -61,22 +54,131 @@ The `category` field accepts these six KB standards:
 - `api-standard`
 - `logging`
 
+## Environment
+
+Create a local `.env` file from `.env.example`:
+
+```env
+DATABASE_URL=postgresql+asyncpg://postgres:your_password@localhost:5123/chatbot_db
+DATABASE_ECHO=false
+```
+
+Use your real PostgreSQL password in `.env`. Do not commit `.env`.
+
+## Install
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+If your machine uses the `py` launcher on Windows:
+
+```powershell
+py -3.11 -m pip install -r requirements.txt
+```
+
+## Alembic
+
+Alembic tracks database schema changes.
+
+If your `kb` tables already exist because you created them manually, mark the
+current database as matching the first migration:
+
+```powershell
+alembic stamp head
+```
+
+For a new empty database, run:
+
+```powershell
+alembic upgrade head
+```
+
+Do not run `alembic upgrade head` against a database where the same tables
+already exist, or PostgreSQL will complain that the tables already exist.
+
+## Test Database Connection
+
+Run:
+
+```powershell
+python tests/test_database_connection.py
+```
+
+Expected success output:
+
+```text
+Database connection OK: connected to 'chatbot_db'.
+Schema OK: found kb schema and all 9 expected tables.
+Categories OK: found all 6 document categories.
+```
+
+## Run Locally
+
+```powershell
+python -m uvicorn app.main:app --reload
+```
+
+If the database connection works, the terminal prints:
+
+```text
+database connect is working
+```
+
+Open Swagger UI:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+## Project Structure
+
+```text
+app/
+  core/       shared config and enums
+  db/         SQLAlchemy engine, session, and Base
+  models/     split SQLAlchemy ORM model files
+  repositories/ database query layer
+  routes/     FastAPI routers
+  schemas/    Pydantic request and response models
+  services/   business logic
+  main.py     FastAPI app entrypoint
+alembic/      database migrations
+tests/        local test scripts
+```
+
+The request flow is:
+
+```text
+routes -> services -> repositories -> database
+```
+
+Routes handle HTTP, file uploads, and error-to-status-code translation.
+Services contain business logic and response conversion.
+Repositories contain SQLAlchemy queries and database commits.
+
 ## Endpoints
 
+- `GET /api/health` checks whether the API process is running.
 - `GET /api/documents` lists paginated documents and supports optional `name` and `category` filtering.
-- `GET /api/documents/{document_id}` returns one document or `404`.
+- `GET /api/documents/{document_id}` returns one document by UUID or `404`.
 - `POST /api/documents` creates a document from an uploaded UTF-8 text file.
 - `PUT /api/documents/{document_id}` replaces an existing document with a new uploaded UTF-8 text file or returns `404`.
-- `DELETE /api/documents/{document_id}` deletes one document or returns `404`.
+- `DELETE /api/documents/{document_id}` deletes one document by UUID or returns `404`.
 
-## Swagger test checklist
+## Swagger Test Checklist
 
+- Start PostgreSQL.
+- Start the API and confirm the terminal prints `database connect is working`.
 - Create a document with a valid category.
-- Confirm `id` and `created_at` are generated by the server.
+- Confirm `id` is a UUID and `created_at` is generated by the server.
 - List documents with `GET /api/documents?page=1&page_size=10`.
 - Filter documents with `GET /api/documents?name=Coding&category=coding-convention&page=1&page_size=10`.
 - Fetch a valid document by id.
-- Fetch a missing id and confirm it returns `404`.
-- Replace a document with `PUT /api/documents/{document_id}` and confirm the same `id` and `created_at` are kept.
+- Fetch a missing UUID and confirm it returns `404`.
+- Replace a document with `PUT /api/documents/{document_id}`.
 - Try an invalid category and confirm validation rejects it.
 - Delete a document and confirm the same id returns `404` afterward.
+- Restart the API and confirm created documents still appear.
+
+More detail is in `WEEK2_DATABASE_NOTES.txt`.
