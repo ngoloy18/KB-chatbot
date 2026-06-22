@@ -1,6 +1,7 @@
+from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, CheckConstraint, String, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,6 +33,20 @@ class User(TimestampMixin, Base):
     full_name: Mapped[str | None] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="user")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Email verification proves the user controls the email used for login.
+    is_email_verified: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+    # The token is temporary proof used by /auth/verify-email.
+    email_verification_token: Mapped[str | None] = mapped_column(
+        String(255),
+        unique=True,
+    )
+    email_verification_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
 
     # Relationships let SQLAlchemy navigate from one user to related records.
     documents: Mapped[list["Document"]] = relationship(back_populates="creator")

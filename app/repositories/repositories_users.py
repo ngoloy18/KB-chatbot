@@ -1,9 +1,10 @@
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.models_database import User
+from app.models.models_database import Document, User
 
 
 class UserRepository:
@@ -22,6 +23,30 @@ class UserRepository:
         query = select(User).where(User.id == user_id)
         return await db.scalar(query)
 
+    async def get_by_verification_token(
+        self,
+        db: AsyncSession,
+        token: str,
+    ) -> User | None:
+        """Return one user by email verification token if it exists."""
+
+        query = select(User).where(User.email_verification_token == token)
+        return await db.scalar(query)
+
+    async def list_users(
+        self,
+        db: AsyncSession,
+        page: int,
+        page_size: int,
+    ) -> tuple[list[User], int]:
+        """Return one page of users and the total user count."""
+
+        offset = (page - 1) * page_size
+        total = await db.scalar(select(func.count()).select_from(User))
+        query = select(User).order_by(User.created_at.desc()).offset(offset).limit(page_size)
+        rows = await db.scalars(query)
+        return list(rows), total or 0
+
     async def create_user(
         self,
         db: AsyncSession,
@@ -29,6 +54,9 @@ class UserRepository:
         hashed_password: str,
         full_name: str | None = None,
         role: str = "user",
+        is_email_verified: bool = False,
+        email_verification_token: str | None = None,
+        email_verification_sent_at: datetime | None = None,
     ) -> User:
         """Create one user row."""
 
@@ -39,11 +67,26 @@ class UserRepository:
             full_name=full_name,
             role=role,
             is_active=True,
+            is_email_verified=is_email_verified,
+            email_verification_token=email_verification_token,
+            email_verification_sent_at=email_verification_sent_at,
         )
         db.add(user)
         # commit writes the INSERT to PostgreSQL.
         await db.commit()
         return user
+
+    async def delete_user(self, db: AsyncSession, user: User) -> None:
+        """Delete one user row."""
+
+        # Keep documents but remove ownership so the users foreign key will not block.
+        await db.execute(
+            update(Document)
+            .where(Document.created_by == user.id)
+            .values(created_by=None)
+        )
+        await db.delete(user)
+        await db.commit()
 
 
 user_repository = UserRepository()

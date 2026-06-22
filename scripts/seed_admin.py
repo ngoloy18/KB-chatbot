@@ -29,10 +29,16 @@ async def seed_admin() -> None:
         )
         if existing_user is not None:
             if existing_user.role == "admin":
+                if not existing_user.is_email_verified:
+                    existing_user.is_email_verified = True
+                    existing_user.email_verification_token = None
+                    await db.commit()
                 print("Admin already exists; no changes made.")
                 return
             # If the email already belongs to a normal user, promote it once.
             existing_user.role = "admin"
+            existing_user.is_email_verified = True
+            existing_user.email_verification_token = None
             await db.commit()
             print("Existing user promoted to admin.")
             return
@@ -43,6 +49,7 @@ async def seed_admin() -> None:
             email=settings.initial_admin_email,
             hashed_password=hash_password(settings.initial_admin_password),
             role="admin",
+            is_email_verified=True,
         )
         print("Admin user created.")
 

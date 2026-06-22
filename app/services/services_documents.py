@@ -5,17 +5,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DocumentCategory
 from app.repositories.repositories_documents import document_repository
+from app.repositories.repositories_users import user_repository
 from app.schemas.schemas_documents import (
     DocumentCreate,
     DocumentListResponse,
+    DocumentPermissionResponse,
+    DocumentPermissionUpsertRequest,
     DocumentResponse,
     DocumentUpdate,
     document_to_response,
 )
 from app.services.exceptions_documents import (
+    DocumentAccessDeniedError,
     DocumentCategoryNotFoundError,
     DocumentNotFoundError,
+    DocumentPermissionNotFoundError,
 )
+from app.services.exceptions_users import UserNotFoundError
 
 
 class DocumentService:
@@ -28,6 +34,8 @@ class DocumentService:
         category: DocumentCategory | None = None,
         page: int = 1,
         page_size: int = 10,
+        current_user_id: UUID | None = None,
+        is_admin: bool = False,
     ) -> DocumentListResponse:
         """Return a paginated list of documents after optional filters."""
 
@@ -37,6 +45,8 @@ class DocumentService:
             category=category,
             page=page,
             page_size=page_size,
+            user_id=current_user_id,
+            include_all=is_admin,
         )
 
         # Convert repository results into the API response shape.
@@ -51,10 +61,23 @@ class DocumentService:
         self,
         db: AsyncSession,
         document_id: UUID,
+        current_user_id: UUID | None = None,
+        is_admin: bool = False,
     ) -> DocumentResponse:
         """Return one document or raise a service-level not-found error."""
 
         document = await self._get_document_or_raise(db, document_id)
+        if not is_admin:
+            if current_user_id is None:
+                raise DocumentAccessDeniedError("Login is required to read documents.")
+            user_can_read = await document_repository.user_has_document_permission(
+                db,
+                document_id,
+                current_user_id,
+                ["read", "write", "owner"],
+            )
+            if not user_can_read:
+                raise DocumentAccessDeniedError("You do not have access to this document.")
         return document_to_response(document)
 
     async def create_document(
@@ -83,11 +106,24 @@ class DocumentService:
         db: AsyncSession,
         document_id: UUID,
         payload: DocumentUpdate,
+        current_user_id: UUID | None = None,
+        is_admin: bool = False,
     ) -> DocumentResponse:
         """Update only the fields supplied in the request body."""
 
         # Reuse the helper so missing documents get the same not-found behavior.
         document = await self._get_document_or_raise(db, document_id)
+        if not is_admin:
+            if current_user_id is None:
+                raise DocumentAccessDeniedError("Login is required to update documents.")
+            user_can_write = await document_repository.user_has_document_permission(
+                db,
+                document_id,
+                current_user_id,
+                ["write", "owner"],
+            )
+            if not user_can_write:
+                raise DocumentAccessDeniedError("Write permission is required.")
 
         category = None
         if payload.category is not None:
@@ -109,12 +145,78 @@ class DocumentService:
         )
         return document_to_response(document)
 
-    async def delete_document(self, db: AsyncSession, document_id: UUID) -> None:
+    async def delete_document(
+        self,
+        db: AsyncSession,
+        document_id: UUID,
+        current_user_id: UUID | None = None,
+        is_admin: bool = False,
+    ) -> None:
         """Delete one document or raise if the id is unknown."""
 
         # Loading first lets us return 404 instead of silently doing nothing.
         document = await self._get_document_or_raise(db, document_id)
+        if not is_admin:
+            if current_user_id is None:
+                raise DocumentAccessDeniedError("Login is required to delete documents.")
+            user_can_delete = await document_repository.user_has_document_permission(
+                db,
+                document_id,
+                current_user_id,
+                ["owner"],
+            )
+            if not user_can_delete:
+                raise DocumentAccessDeniedError("Owner permission is required.")
         await document_repository.delete_document(db, document)
+
+    async def list_document_permissions(
+        self,
+        db: AsyncSession,
+        document_id: UUID,
+    ) -> list[DocumentPermissionResponse]:
+        """Return every user permission for one document."""
+
+        await self._get_document_or_raise(db, document_id)
+        permissions = await document_repository.list_permissions(db, document_id)
+        return [
+            DocumentPermissionResponse.model_validate(permission)
+            for permission in permissions
+        ]
+
+    async def grant_document_permission(
+        self,
+        db: AsyncSession,
+        document_id: UUID,
+        payload: DocumentPermissionUpsertRequest,
+    ) -> DocumentPermissionResponse:
+        """Grant or change one user's permission for a document."""
+
+        await self._get_document_or_raise(db, document_id)
+        user = await user_repository.get_by_id(db, payload.user_id)
+        if user is None:
+            raise UserNotFoundError("User not found.")
+
+        permission = await document_repository.upsert_permission(
+            db=db,
+            document_id=document_id,
+            user_id=payload.user_id,
+            permission=payload.permission.value,
+        )
+        return DocumentPermissionResponse.model_validate(permission)
+
+    async def revoke_document_permission(
+        self,
+        db: AsyncSession,
+        document_id: UUID,
+        user_id: UUID,
+    ) -> None:
+        """Remove one user's permission for a document."""
+
+        await self._get_document_or_raise(db, document_id)
+        permission = await document_repository.get_permission(db, document_id, user_id)
+        if permission is None:
+            raise DocumentPermissionNotFoundError("Document permission not found.")
+        await document_repository.delete_permission(db, permission)
 
     async def _get_document_or_raise(
         self,

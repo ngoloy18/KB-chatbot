@@ -1,11 +1,11 @@
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import DocumentCategory
-from app.models.models_database import Document, DocumentCategoryModel
+from app.models.models_database import Document, DocumentCategoryModel, DocumentPermission
 from app.schemas.schemas_documents import DocumentCreate, DocumentUpdate
 
 
@@ -19,6 +19,8 @@ class DocumentRepository:
         category: DocumentCategory | None = None,
         page: int = 1,
         page_size: int = 10,
+        user_id: UUID | None = None,
+        include_all: bool = False,
     ) -> tuple[list[Document], int]:
         """Return matching document ORM rows and their total count."""
 
@@ -28,6 +30,18 @@ class DocumentRepository:
             filters.append(Document.title.ilike(f"%{name}%"))
         if category is not None:
             filters.append(DocumentCategoryModel.name == category.value)
+        if user_id is not None and not include_all:
+            # Normal users only see documents where admin granted read-level access.
+            filters.append(
+                Document.id.in_(
+                    select(DocumentPermission.document_id).where(
+                        and_(
+                            DocumentPermission.user_id == user_id,
+                            DocumentPermission.permission.in_(["read", "write", "owner"]),
+                        )
+                    )
+                )
+            )
 
         # Count first so the response can include the total matching rows.
         total_query = (
@@ -64,6 +78,24 @@ class DocumentRepository:
             .where(Document.id == document_id)
         )
         return await db.scalar(query)
+
+    async def user_has_document_permission(
+        self,
+        db: AsyncSession,
+        document_id: UUID,
+        user_id: UUID,
+        allowed_permissions: list[str],
+    ) -> bool:
+        """Return whether a user has one of the allowed permissions."""
+
+        query = select(func.count()).select_from(DocumentPermission).where(
+            and_(
+                DocumentPermission.document_id == document_id,
+                DocumentPermission.user_id == user_id,
+                DocumentPermission.permission.in_(allowed_permissions),
+            )
+        )
+        return (await db.scalar(query) or 0) > 0
 
     async def get_category_by_name(
         self,
@@ -134,6 +166,73 @@ class DocumentRepository:
         """Delete one loaded document row from PostgreSQL."""
 
         await db.delete(document)
+        await db.commit()
+
+    async def list_permissions(
+        self,
+        db: AsyncSession,
+        document_id: UUID,
+    ) -> list[DocumentPermission]:
+        """Return every permission row for one document."""
+
+        query = (
+            select(DocumentPermission)
+            .where(DocumentPermission.document_id == document_id)
+            .order_by(DocumentPermission.created_at.desc())
+        )
+        rows = await db.scalars(query)
+        return list(rows)
+
+    async def get_permission(
+        self,
+        db: AsyncSession,
+        document_id: UUID,
+        user_id: UUID,
+    ) -> DocumentPermission | None:
+        """Return one permission row for one document/user pair."""
+
+        query = select(DocumentPermission).where(
+            and_(
+                DocumentPermission.document_id == document_id,
+                DocumentPermission.user_id == user_id,
+            )
+        )
+        return await db.scalar(query)
+
+    async def upsert_permission(
+        self,
+        db: AsyncSession,
+        document_id: UUID,
+        user_id: UUID,
+        permission: str,
+    ) -> DocumentPermission:
+        """Create or update a document permission row."""
+
+        existing_permission = await self.get_permission(db, document_id, user_id)
+        if existing_permission is not None:
+            existing_permission.permission = permission
+            await db.commit()
+            await db.refresh(existing_permission)
+            return existing_permission
+
+        new_permission = DocumentPermission(
+            document_id=document_id,
+            user_id=user_id,
+            permission=permission,
+        )
+        db.add(new_permission)
+        await db.commit()
+        await db.refresh(new_permission)
+        return new_permission
+
+    async def delete_permission(
+        self,
+        db: AsyncSession,
+        permission: DocumentPermission,
+    ) -> None:
+        """Delete one document permission row."""
+
+        await db.delete(permission)
         await db.commit()
 
 

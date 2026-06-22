@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
 
@@ -6,6 +7,14 @@ from fastapi import Form
 from pydantic import BaseModel, ConfigDict, Field
 from app.core.config import DocumentCategory
 from app.models.models_database import Document
+
+
+class DocumentPermissionValue(StrEnum):
+    """Allowed document permission values admins can assign."""
+
+    READ = "read"
+    WRITE = "write"
+    OWNER = "owner"
 
 
 class DocumentCreate(BaseModel):
@@ -95,3 +104,23 @@ def document_to_response(document: Document) -> DocumentResponse:
         content=document.content,
         created_at=document.created_at,
     )
+
+
+class DocumentPermissionUpsertRequest(BaseModel):
+    """Admin request body for granting or changing document access."""
+
+    user_id: UUID
+    permission: DocumentPermissionValue
+
+
+class DocumentPermissionResponse(BaseModel):
+    """Permission row returned by admin document-permission endpoints."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    document_id: UUID
+    user_id: UUID
+    permission: DocumentPermissionValue
+    created_at: datetime
+    updated_at: datetime

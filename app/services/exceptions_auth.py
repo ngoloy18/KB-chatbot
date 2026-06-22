@@ -13,4 +13,12 @@ class InvalidCredentialsError(ValueError):
 class InactiveUserError(ValueError):
     """Raised when an inactive user tries to authenticate."""
 
+
+class EmailNotVerifiedError(ValueError):
+    """Raised when a user tries to login before verifying their email."""
+
+
+class InvalidVerificationTokenError(ValueError):
+    """Raised when an email verification token is missing or invalid."""
+
     pass

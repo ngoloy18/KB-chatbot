@@ -7,13 +7,17 @@ from app.models.models_database import User
 from app.schemas.schemas_auth import (
     LoginRequest,
     RegisterRequest,
+    RegisterResponse,
     TokenResponse,
     UserResponse,
+    VerifyEmailRequest,
 )
 from app.services.exceptions_auth import (
     DuplicateEmailError,
+    EmailNotVerifiedError,
     InactiveUserError,
     InvalidCredentialsError,
+    InvalidVerificationTokenError,
 )
 from app.services.services_auth import auth_service
 
@@ -23,14 +27,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post(
     "/register",
-    response_model=UserResponse,
+    response_model=RegisterResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Register a normal user",
 )
 async def register_user(
     payload: RegisterRequest,
     db: AsyncSession = Depends(get_db),
-) -> UserResponse:
+) -> RegisterResponse:
     """Register a normal user account; public registration never creates admins."""
 
     try:
@@ -39,6 +43,26 @@ async def register_user(
     except DuplicateEmailError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/verify-email",
+    response_model=UserResponse,
+    summary="Verify registered email",
+)
+async def verify_email(
+    payload: VerifyEmailRequest,
+    db: AsyncSession = Depends(get_db),
+) -> UserResponse:
+    """Verify an email address using the registration verification token."""
+
+    try:
+        return await auth_service.verify_email(db, payload)
+    except InvalidVerificationTokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
 
@@ -64,6 +88,11 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
     except InactiveUserError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    except EmailNotVerifiedError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(exc),

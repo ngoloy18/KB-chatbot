@@ -14,7 +14,7 @@ from uuid import UUID, uuid4
 
 from app.core.config import DocumentCategory, settings
 from app.db.session import get_db
-from app.dependencies.auth import require_admin
+from app.dependencies.auth import get_current_user, require_admin
 from app.models.models_database import User
 from app.schemas.schemas_documents import (
     DocumentCreate,
@@ -25,6 +25,7 @@ from app.schemas.schemas_documents import (
 )
 from app.services import document_service
 from app.services.exceptions_documents import (
+    DocumentAccessDeniedError,
     DocumentCategoryNotFoundError,
     DocumentNotFoundError,
 )
@@ -136,6 +137,7 @@ async def list_documents(
         description="Number of documents per page.",
     ),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> DocumentListResponse:
     """List documents with optional filters and pagination.
 
@@ -144,7 +146,15 @@ async def list_documents(
     """
 
     # The route does not build SQL. It passes validated inputs to the service.
-    return await document_service.list_documents(db, name, category, page, page_size)
+    return await document_service.list_documents(
+        db=db,
+        name=name,
+        category=category,
+        page=page,
+        page_size=page_size,
+        current_user_id=current_user.id,
+        is_admin=current_user.role == "admin",
+    )
 
 
 @router.get(
@@ -156,15 +166,23 @@ async def list_documents(
 async def get_document(
     document_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> DocumentResponse:
     """Return one document by id, translating service errors to HTTP errors."""
 
     try:
         # The service returns a Pydantic response object if the row exists.
-        return await document_service.get_document(db, document_id)
+        return await document_service.get_document(
+            db=db,
+            document_id=document_id,
+            current_user_id=current_user.id,
+            is_admin=current_user.role == "admin",
+        )
     except DocumentNotFoundError as exc:
         # Keep the service free of FastAPI-specific exceptions.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except DocumentAccessDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
 
 
 @router.post(
@@ -237,7 +255,7 @@ async def update_document(
     request: DocumentUploadRequest = Depends(DocumentUploadRequest.as_form),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ) -> DocumentResponse:
     """Replace a document's file content while keeping its id and created_at."""
 
@@ -259,10 +277,18 @@ async def update_document(
 
     try:
         # The service updates only the existing row matching document_id.
-        return await document_service.update_document(db, document_id, payload)
+        return await document_service.update_document(
+            db=db,
+            document_id=document_id,
+            payload=payload,
+            current_user_id=current_user.id,
+            is_admin=current_user.role == "admin",
+        )
     except DocumentNotFoundError as exc:
         # Route layer decides the HTTP status code for not-found service errors.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except DocumentAccessDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
     except DocumentCategoryNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -279,13 +305,20 @@ async def update_document(
 async def delete_document(
     document_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ) -> Response:
     """Delete a document and return an empty 204 response."""
 
     try:
         # The service checks existence before deleting so missing IDs return 404.
-        await document_service.delete_document(db, document_id)
+        await document_service.delete_document(
+            db=db,
+            document_id=document_id,
+            current_user_id=current_user.id,
+            is_admin=current_user.role == "admin",
+        )
     except DocumentNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except DocumentAccessDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
