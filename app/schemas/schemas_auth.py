@@ -17,7 +17,13 @@ class RegisterRequest(BaseModel):
         description="Password must be at least 8 characters.",
         examples=["password123"],
     )
-    full_name: str | None = Field(default=None, max_length=255)
+    full_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=255,
+        description="User's full name is required during registration.",
+        examples=["Loy Ngo"],
+    )
 
 
 class LoginRequest(BaseModel):
