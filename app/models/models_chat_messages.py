@@ -4,6 +4,11 @@ from sqlalchemy import CheckConstraint, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.constants.constants_chat import (
+    CHAT_ROLE_ASSISTANT,
+    CHAT_ROLE_SYSTEM,
+    CHAT_ROLE_USER,
+)
 from app.db.base import Base
 from app.constants.constants_database import SCHEMA_NAME
 from app.models.mixins import TimestampMixin
@@ -16,7 +21,7 @@ class ChatMessage(TimestampMixin, Base):
     __table_args__ = (
         # Role tells the app how to interpret this message in the conversation.
         CheckConstraint(
-            "role IN ('user', 'assistant', 'system')",
+            f"role IN ('{CHAT_ROLE_USER}', '{CHAT_ROLE_ASSISTANT}', '{CHAT_ROLE_SYSTEM}')",
             name="chat_messages_role_check",
         ),
         {"schema": SCHEMA_NAME},

@@ -68,6 +68,7 @@ class UserService:
         if payload.full_name is not None:
             user.full_name = payload.full_name
         if payload.role is not None:
+            # Role is validated by the request schema before it reaches the service.
             user.role = payload.role
         if payload.is_active is not None:
             user.is_active = payload.is_active

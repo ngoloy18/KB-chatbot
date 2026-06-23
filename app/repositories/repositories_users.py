@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.constants_auth import USER_ROLE_USER
 from app.models.models_database import Document, User
 
 
@@ -53,7 +54,7 @@ class UserRepository:
         email: str,
         hashed_password: str,
         full_name: str | None = None,
-        role: str = "user",
+        role: str = USER_ROLE_USER,
         is_email_verified: bool = False,
         email_verification_token: str | None = None,
         email_verification_sent_at: datetime | None = None,

@@ -4,6 +4,12 @@ from sqlalchemy import CheckConstraint, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.constants.constants_documents import (
+    DOCUMENT_STATUS_FAILED,
+    DOCUMENT_STATUS_PROCESSING,
+    DOCUMENT_STATUS_READY,
+    DOCUMENT_STATUS_UPLOADED,
+)
 from app.core.config import DocumentCategory
 from app.db.base import Base
 from app.constants.constants_database import SCHEMA_NAME
@@ -17,7 +23,9 @@ class Document(TimestampMixin, Base):
     __table_args__ = (
         # Status describes where the document is in the upload/processing pipeline.
         CheckConstraint(
-            "status IN ('uploaded', 'processing', 'ready', 'failed')",
+            "status IN "
+            f"('{DOCUMENT_STATUS_UPLOADED}', '{DOCUMENT_STATUS_PROCESSING}', "
+            f"'{DOCUMENT_STATUS_READY}', '{DOCUMENT_STATUS_FAILED}')",
             name="documents_status_check",
         ),
         {"schema": SCHEMA_NAME},
@@ -42,7 +50,11 @@ class Document(TimestampMixin, Base):
     file_type: Mapped[str | None] = mapped_column(String(50))
     # Content is stored as text so the app can search/read it immediately.
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[str] = mapped_column(String(30), nullable=False, default="uploaded")
+    status: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default=DOCUMENT_STATUS_UPLOADED,
+    )
     # Nullable until authentication is implemented and every request has a user.
     created_by: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),

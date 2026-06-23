@@ -1,0 +1,6 @@
+"""AI run status constants."""
+
+
+AI_RUN_STATUS_SUCCESS = "success"
+AI_RUN_STATUS_FAILED = "failed"
+AI_RUN_STATUSES = [AI_RUN_STATUS_SUCCESS, AI_RUN_STATUS_FAILED]

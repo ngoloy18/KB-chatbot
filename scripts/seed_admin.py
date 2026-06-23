@@ -9,6 +9,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from app.core.config import settings
 from app.core.security import hash_password
 from app.db.session import AsyncSessionLocal
+from app.constants.constants_auth import USER_ROLE_ADMIN
 from app.repositories.repositories_users import user_repository
 
 
@@ -28,7 +29,7 @@ async def seed_admin() -> None:
             settings.initial_admin_email,
         )
         if existing_user is not None:
-            if existing_user.role == "admin":
+            if existing_user.role == USER_ROLE_ADMIN:
                 if not existing_user.is_email_verified:
                     existing_user.is_email_verified = True
                     existing_user.email_verification_token = None
@@ -36,7 +37,7 @@ async def seed_admin() -> None:
                 print("Admin already exists; no changes made.")
                 return
             # If the email already belongs to a normal user, promote it once.
-            existing_user.role = "admin"
+            existing_user.role = USER_ROLE_ADMIN
             existing_user.is_email_verified = True
             existing_user.email_verification_token = None
             await db.commit()
@@ -48,7 +49,7 @@ async def seed_admin() -> None:
             db=db,
             email=settings.initial_admin_email,
             hashed_password=hash_password(settings.initial_admin_password),
-            role="admin",
+            role=USER_ROLE_ADMIN,
             is_email_verified=True,
         )
         print("Admin user created.")

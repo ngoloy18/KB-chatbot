@@ -9,6 +9,7 @@ from sqlalchemy import delete
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from app.constants.constants_auth import TOKEN_TYPE_BEARER, USER_ROLE_USER
 from app.db.session import AsyncSessionLocal
 from app.models.models_database import User
 from app.schemas.schemas_auth import LoginRequest, RegisterRequest, VerifyEmailRequest
@@ -32,7 +33,7 @@ async def check_normal_user_auth_flow() -> None:
                     full_name="Test User",
                 ),
             )
-            if registered_user.user.role != "user":
+            if registered_user.user.role != USER_ROLE_USER:
                 raise AssertionError("Registered users should have role='user'.")
 
             try:
@@ -54,7 +55,7 @@ async def check_normal_user_auth_flow() -> None:
                 db,
                 LoginRequest(email=email, password=password),
             )
-            if token.token_type != "bearer" or not token.access_token:
+            if token.token_type != TOKEN_TYPE_BEARER or not token.access_token:
                 raise AssertionError("Login did not return a Bearer access token.")
         finally:
             # Keep the real local database clean after this test creates a user.

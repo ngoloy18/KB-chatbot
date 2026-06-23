@@ -12,6 +12,11 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID, uuid4
 
+from app.constants.constants_auth import USER_ROLE_ADMIN
+from app.constants.constants_documents import (
+    DEFAULT_UPLOAD_CONTENT_TYPE,
+    DEFAULT_UPLOAD_FILE_NAME,
+)
 from app.core.config import DocumentCategory, settings
 from app.db.session import get_db
 from app.dependencies.auth import get_current_user, require_admin
@@ -41,7 +46,7 @@ def save_uploaded_file(file: UploadFile, file_bytes: bytes) -> tuple[str, str, s
     """Save the uploaded file and return name, path, and content type metadata."""
 
     # Path(...).name strips any folder parts so clients cannot control our path.
-    original_name = Path(file.filename or "uploaded-document.txt").name
+    original_name = Path(file.filename or DEFAULT_UPLOAD_FILE_NAME).name
 
     # Prefix with a UUID so two uploads with the same filename do not overwrite.
     stored_name = f"{uuid4()}_{original_name}"
@@ -54,7 +59,7 @@ def save_uploaded_file(file: UploadFile, file_bytes: bytes) -> tuple[str, str, s
     file_path.write_bytes(file_bytes)
 
     # Return metadata that will be saved into kb.documents.
-    return original_name, file_path.as_posix(), file.content_type or "text/plain"
+    return original_name, file_path.as_posix(), file.content_type or DEFAULT_UPLOAD_CONTENT_TYPE
 
 
 def cleanup_saved_upload(file_path: str | None) -> None:
@@ -163,7 +168,7 @@ async def list_documents(
         page=page,
         page_size=page_size,
         current_user_id=current_user.id,
-        is_admin=current_user.role == "admin",
+        is_admin=current_user.role == USER_ROLE_ADMIN,
     )
 
 
@@ -186,7 +191,7 @@ async def get_document(
             db=db,
             document_id=document_id,
             current_user_id=current_user.id,
-            is_admin=current_user.role == "admin",
+            is_admin=current_user.role == USER_ROLE_ADMIN,
         )
     except DocumentNotFoundError as exc:
         # Keep the service free of FastAPI-specific exceptions.
@@ -266,7 +271,7 @@ async def update_document(
             document_id=document_id,
             payload=payload,
             current_user_id=current_user.id,
-            is_admin=current_user.role == "admin",
+            is_admin=current_user.role == USER_ROLE_ADMIN,
         )
     except DocumentNotFoundError as exc:
         # Route layer decides the HTTP status code for not-found service errors.
@@ -299,7 +304,7 @@ async def delete_document(
             db=db,
             document_id=document_id,
             current_user_id=current_user.id,
-            is_admin=current_user.role == "admin",
+            is_admin=current_user.role == USER_ROLE_ADMIN,
         )
     except DocumentNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))

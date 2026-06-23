@@ -5,6 +5,12 @@ from uuid import UUID
 
 from fastapi import Form
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.constants.constants_permissions import (
+    DOCUMENT_PERMISSION_OWNER,
+    DOCUMENT_PERMISSION_READ,
+    DOCUMENT_PERMISSION_WRITE,
+)
 from app.core.config import DocumentCategory
 from app.models.models_database import Document
 
@@ -12,9 +18,9 @@ from app.models.models_database import Document
 class DocumentPermissionValue(StrEnum):
     """Allowed document permission values admins can assign."""
 
-    READ = "read"
-    WRITE = "write"
-    OWNER = "owner"
+    READ = DOCUMENT_PERMISSION_READ
+    WRITE = DOCUMENT_PERMISSION_WRITE
+    OWNER = DOCUMENT_PERMISSION_OWNER
 
 
 class DocumentCreate(BaseModel):

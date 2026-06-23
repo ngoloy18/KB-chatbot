@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+from app.constants.constants_auth import TOKEN_TYPE_BEARER
+
 
 class RegisterRequest(BaseModel):
     """Request body for normal user registration."""
@@ -43,7 +45,7 @@ class TokenResponse(BaseModel):
     """JWT returned after a successful login."""
 
     access_token: str
-    token_type: str = "bearer"
+    token_type: str = TOKEN_TYPE_BEARER
 
 
 class VerifyEmailRequest(BaseModel):

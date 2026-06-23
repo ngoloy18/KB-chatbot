@@ -3,6 +3,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+from app.constants.constants_auth import USER_ROLE_ADMIN, USER_ROLE_USER
+
+
+USER_ROLE_PATTERN = f"^({USER_ROLE_ADMIN}|{USER_ROLE_USER})$"
+
 
 class UserUpdateRequest(BaseModel):
     """Admin request body for editing a user account."""
@@ -13,7 +18,7 @@ class UserUpdateRequest(BaseModel):
         description="Changing email marks the user unverified and creates a new verification token.",
     )
     full_name: str | None = Field(default=None, max_length=255)
-    role: str | None = Field(default=None, pattern="^(admin|user)$")
+    role: str | None = Field(default=None, pattern=USER_ROLE_PATTERN)
     is_active: bool | None = None
     is_email_verified: bool | None = None
     password: str | None = Field(default=None, min_length=8, max_length=128)

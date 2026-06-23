@@ -4,6 +4,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.constants.constants_documents import DOCUMENT_STATUS_READY
 from app.constants.constants_permissions import DOCUMENT_READ_PERMISSIONS
 from app.core.config import DocumentCategory
 from app.models.models_database import Document, DocumentCategoryModel, DocumentPermission
@@ -127,7 +128,7 @@ class DocumentRepository:
             file_path=payload.file_path,
             file_type=payload.file_type,
             content=payload.content,
-            status="ready",
+            status=DOCUMENT_STATUS_READY,
         )
 
         # Add stages the object; commit writes the INSERT to PostgreSQL.

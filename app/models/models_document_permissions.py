@@ -4,6 +4,11 @@ from sqlalchemy import CheckConstraint, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.constants.constants_permissions import (
+    DOCUMENT_PERMISSION_OWNER,
+    DOCUMENT_PERMISSION_READ,
+    DOCUMENT_PERMISSION_WRITE,
+)
 from app.db.base import Base
 from app.constants.constants_database import SCHEMA_NAME
 from app.models.mixins import TimestampMixin
@@ -16,7 +21,9 @@ class DocumentPermission(TimestampMixin, Base):
     __table_args__ = (
         # Keep permission values predictable for authorization checks.
         CheckConstraint(
-            "permission IN ('read', 'write', 'owner')",
+            "permission IN "
+            f"('{DOCUMENT_PERMISSION_READ}', '{DOCUMENT_PERMISSION_WRITE}', "
+            f"'{DOCUMENT_PERMISSION_OWNER}')",
             name="document_permissions_permission_check",
         ),
         # One user should have only one permission row per document.

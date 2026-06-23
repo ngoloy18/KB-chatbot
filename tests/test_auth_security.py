@@ -9,6 +9,7 @@ os.environ.setdefault("JWT_SECRET", "test-secret-for-auth-security")
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from app.constants.constants_auth import JWT_ROLE_CLAIM, JWT_SUBJECT_CLAIM, USER_ROLE_ADMIN
 from app.core.security import (
     create_access_token,
     decode_access_token,
@@ -26,10 +27,10 @@ def check_auth_security() -> None:
     assert not verify_password("wrong-password", hashed_password)
 
     user_id = uuid4()
-    token = create_access_token(user_id=user_id, role="admin")
+    token = create_access_token(user_id=user_id, role=USER_ROLE_ADMIN)
     payload = decode_access_token(token)
-    assert payload["sub"] == str(user_id)
-    assert payload["role"] == "admin"
+    assert payload[JWT_SUBJECT_CLAIM] == str(user_id)
+    assert payload[JWT_ROLE_CLAIM] == USER_ROLE_ADMIN
 
     print("Auth security helpers OK.")
 

@@ -1,6 +1,36 @@
 """Shared application constants."""
 
+from app.constants.constants_ai import (
+    AI_RUN_STATUS_FAILED,
+    AI_RUN_STATUS_SUCCESS,
+    AI_RUN_STATUSES,
+)
+from app.constants.constants_auth import (
+    AUTH_SCHEME_BEARER,
+    JWT_EXPIRES_AT_CLAIM,
+    JWT_ROLE_CLAIM,
+    JWT_SUBJECT_CLAIM,
+    TOKEN_TYPE_BEARER,
+    USER_ROLE_ADMIN,
+    USER_ROLE_USER,
+    USER_ROLES,
+)
+from app.constants.constants_chat import (
+    CHAT_ROLE_ASSISTANT,
+    CHAT_ROLE_SYSTEM,
+    CHAT_ROLE_USER,
+    CHAT_ROLES,
+)
 from app.constants.constants_database import SCHEMA_NAME
+from app.constants.constants_documents import (
+    DEFAULT_UPLOAD_CONTENT_TYPE,
+    DEFAULT_UPLOAD_FILE_NAME,
+    DOCUMENT_STATUS_FAILED,
+    DOCUMENT_STATUS_PROCESSING,
+    DOCUMENT_STATUS_READY,
+    DOCUMENT_STATUS_UPLOADED,
+    DOCUMENT_STATUSES,
+)
 from app.constants.constants_permissions import (
     DOCUMENT_DELETE_PERMISSIONS,
     DOCUMENT_PERMISSION_OWNER,
@@ -11,11 +41,33 @@ from app.constants.constants_permissions import (
 )
 
 __all__ = [
+    "AI_RUN_STATUS_FAILED",
+    "AI_RUN_STATUS_SUCCESS",
+    "AI_RUN_STATUSES",
+    "AUTH_SCHEME_BEARER",
+    "CHAT_ROLE_ASSISTANT",
+    "CHAT_ROLE_SYSTEM",
+    "CHAT_ROLE_USER",
+    "CHAT_ROLES",
+    "DEFAULT_UPLOAD_CONTENT_TYPE",
+    "DEFAULT_UPLOAD_FILE_NAME",
     "DOCUMENT_DELETE_PERMISSIONS",
     "DOCUMENT_PERMISSION_OWNER",
     "DOCUMENT_PERMISSION_READ",
     "DOCUMENT_PERMISSION_WRITE",
     "DOCUMENT_READ_PERMISSIONS",
+    "DOCUMENT_STATUS_FAILED",
+    "DOCUMENT_STATUS_PROCESSING",
+    "DOCUMENT_STATUS_READY",
+    "DOCUMENT_STATUS_UPLOADED",
+    "DOCUMENT_STATUSES",
     "DOCUMENT_WRITE_PERMISSIONS",
+    "JWT_EXPIRES_AT_CLAIM",
+    "JWT_ROLE_CLAIM",
+    "JWT_SUBJECT_CLAIM",
     "SCHEMA_NAME",
+    "TOKEN_TYPE_BEARER",
+    "USER_ROLE_ADMIN",
+    "USER_ROLE_USER",
+    "USER_ROLES",
 ]

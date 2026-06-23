@@ -4,6 +4,11 @@ from uuid import UUID
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
+from app.constants.constants_auth import (
+    JWT_EXPIRES_AT_CLAIM,
+    JWT_ROLE_CLAIM,
+    JWT_SUBJECT_CLAIM,
+)
 from app.core.config import settings
 
 
@@ -36,9 +41,9 @@ def create_access_token(user_id: UUID, role: str) -> str:
     # "sub" is the standard JWT subject field. Here it stores our user's UUID.
     # Role is included so admin checks can read the user's permission level.
     payload = {
-        "sub": str(user_id),
-        "role": role,
-        "exp": expires_at,
+        JWT_SUBJECT_CLAIM: str(user_id),
+        JWT_ROLE_CLAIM: role,
+        JWT_EXPIRES_AT_CLAIM: expires_at,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 

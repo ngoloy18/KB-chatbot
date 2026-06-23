@@ -4,6 +4,7 @@ from sqlalchemy import CheckConstraint, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.constants.constants_ai import AI_RUN_STATUS_FAILED, AI_RUN_STATUS_SUCCESS
 from app.db.base import Base
 from app.constants.constants_database import SCHEMA_NAME
 from app.models.mixins import TimestampMixin
@@ -15,7 +16,10 @@ class AIRun(TimestampMixin, Base):
     __tablename__ = "ai_runs"
     __table_args__ = (
         # A run is either recorded as successful or failed.
-        CheckConstraint("status IN ('success', 'failed')", name="ai_runs_status_check"),
+        CheckConstraint(
+            f"status IN ('{AI_RUN_STATUS_SUCCESS}', '{AI_RUN_STATUS_FAILED}')",
+            name="ai_runs_status_check",
+        ),
         {"schema": SCHEMA_NAME},
     )
 
@@ -42,7 +46,11 @@ class AIRun(TimestampMixin, Base):
     prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
     completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
     total_tokens: Mapped[int] = mapped_column(Integer, default=0)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="success")
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=AI_RUN_STATUS_SUCCESS,
+    )
     # Store provider/error details when status is failed.
     error_message: Mapped[str | None] = mapped_column(Text)
 

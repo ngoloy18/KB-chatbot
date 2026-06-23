@@ -5,6 +5,7 @@ from sqlalchemy import Boolean, CheckConstraint, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.constants.constants_auth import USER_ROLE_ADMIN, USER_ROLE_USER
 from app.db.base import Base
 from app.constants.constants_database import SCHEMA_NAME
 from app.models.mixins import TimestampMixin
@@ -16,7 +17,10 @@ class User(TimestampMixin, Base):
     __tablename__ = "users"
     __table_args__ = (
         # Limit role values at the database level so invalid roles cannot be saved.
-        CheckConstraint("role IN ('admin', 'user')", name="users_role_check"),
+        CheckConstraint(
+            f"role IN ('{USER_ROLE_ADMIN}', '{USER_ROLE_USER}')",
+            name="users_role_check",
+        ),
         {"schema": SCHEMA_NAME},
     )
 
@@ -31,7 +35,11 @@ class User(TimestampMixin, Base):
     # Store only a password hash, never a plain-text password.
     hashed_password: Mapped[str] = mapped_column(Text, nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(255))
-    role: Mapped[str] = mapped_column(String(20), nullable=False, default="user")
+    role: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=USER_ROLE_USER,
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Email verification proves the user controls the email used for login.
     is_email_verified: Mapped[bool] = mapped_column(

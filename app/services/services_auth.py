@@ -3,6 +3,7 @@ from secrets import token_urlsafe
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.constants_auth import USER_ROLE_USER
 from app.core.security import create_access_token, hash_password, verify_password
 from app.repositories.repositories_users import user_repository
 from app.schemas.schemas_auth import (
@@ -45,7 +46,7 @@ class AuthService:
             email=payload.email,
             hashed_password=hash_password(payload.password),
             full_name=payload.full_name,
-            role="user",
+            role=USER_ROLE_USER,
             is_email_verified=False,
             email_verification_token=verification_token,
             email_verification_sent_at=datetime.now(UTC),
