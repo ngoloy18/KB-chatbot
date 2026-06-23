@@ -1,9 +1,16 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from app.constants.constants_auth import USER_ROLE_ADMIN, USER_ROLE_USER
+from app.constants.constants_auth import (
+    PASSWORD_MAX_LENGTH,
+    PASSWORD_MIN_LENGTH,
+    PASSWORD_REQUIREMENTS_DESCRIPTION,
+    USER_ROLE_ADMIN,
+    USER_ROLE_USER,
+)
+from app.schemas.schemas_auth import validate_strong_password
 
 
 USER_ROLE_PATTERN = f"^({USER_ROLE_ADMIN}|{USER_ROLE_USER})$"
@@ -21,7 +28,21 @@ class UserUpdateRequest(BaseModel):
     role: str | None = Field(default=None, pattern=USER_ROLE_PATTERN)
     is_active: bool | None = None
     is_email_verified: bool | None = None
-    password: str | None = Field(default=None, min_length=8, max_length=128)
+    password: str | None = Field(
+        default=None,
+        min_length=PASSWORD_MIN_LENGTH,
+        max_length=PASSWORD_MAX_LENGTH,
+        description=PASSWORD_REQUIREMENTS_DESCRIPTION,
+    )
+
+    @field_validator("password")
+    @classmethod
+    def password_must_be_strong(cls, password: str | None) -> str | None:
+        """Reject weak admin-set passwords before the service updates a user."""
+
+        if password is None:
+            return None
+        return validate_strong_password(password)
 
 
 class UserAdminResponse(BaseModel):

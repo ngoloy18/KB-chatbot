@@ -1,5 +1,7 @@
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from uuid import UUID
+from uuid import uuid4
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -7,6 +9,7 @@ from passlib.context import CryptContext
 from app.constants.constants_auth import (
     JWT_ACCESS_TOKEN_TYPE,
     JWT_EXPIRES_AT_CLAIM,
+    JWT_ID_CLAIM,
     JWT_REFRESH_TOKEN_TYPE,
     JWT_ROLE_CLAIM,
     JWT_SUBJECT_CLAIM,
@@ -62,6 +65,7 @@ def create_refresh_token(user_id: UUID) -> str:
     return _create_token(
         {
             JWT_SUBJECT_CLAIM: str(user_id),
+            JWT_ID_CLAIM: uuid4().hex,
             JWT_TOKEN_TYPE_CLAIM: JWT_REFRESH_TOKEN_TYPE,
         },
         expires_at=expires_at,
@@ -97,6 +101,12 @@ def decode_refresh_token(token: str) -> dict:
     if payload.get(JWT_TOKEN_TYPE_CLAIM) != JWT_REFRESH_TOKEN_TYPE:
         raise ValueError("Invalid refresh token.")
     return payload
+
+
+def hash_token(token: str) -> str:
+    """Hash a token before storing it so the raw token is not saved."""
+
+    return sha256(token.encode("utf-8")).hexdigest()
 
 
 def _decode_token(token: str) -> dict:

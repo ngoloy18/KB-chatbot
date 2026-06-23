@@ -11,6 +11,7 @@ from app.core.security import hash_password
 from app.db.session import AsyncSessionLocal
 from app.constants.constants_auth import USER_ROLE_ADMIN
 from app.repositories.repositories_users import user_repository
+from app.schemas.schemas_auth import validate_strong_password
 
 
 async def seed_admin() -> None:
@@ -21,6 +22,7 @@ async def seed_admin() -> None:
         raise RuntimeError(
             "INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD must be set in .env."
         )
+    validate_strong_password(settings.initial_admin_password)
 
     # Scripts do not go through FastAPI dependencies, so they open a session directly.
     async with AsyncSessionLocal() as db:

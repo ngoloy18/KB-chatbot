@@ -55,6 +55,14 @@ class User(TimestampMixin, Base):
     email_verification_sent_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True)
     )
+    # Password reset tokens are hashed so a leaked database cannot reset accounts.
+    password_reset_token_hash: Mapped[str | None] = mapped_column(
+        String(64),
+        unique=True,
+    )
+    password_reset_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
 
     # Relationships let SQLAlchemy navigate from one user to related records.
     documents: Mapped[list["Document"]] = relationship(back_populates="creator")
@@ -62,3 +70,4 @@ class User(TimestampMixin, Base):
     document_permissions: Mapped[list["DocumentPermission"]] = relationship(
         back_populates="user"
     )
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user")

@@ -22,3 +22,9 @@ class InvalidVerificationTokenError(ValueError):
     """Raised when an email verification token is missing or invalid."""
 
     pass
+
+
+class InvalidPasswordResetTokenError(ValueError):
+    """Raised when a password reset token is missing, invalid, or expired."""
+
+    pass

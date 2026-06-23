@@ -44,10 +44,13 @@ class Settings:
         self.jwt_secret = os.getenv("JWT_SECRET", "")
         self.jwt_algorithm = os.getenv("JWT_ALGORITHM", "HS256")
         self.access_token_expire_minutes = int(
-            os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")
+            os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15")
         )
         self.refresh_token_expire_minutes = int(
             os.getenv("REFRESH_TOKEN_EXPIRE_MINUTES", "10080")
+        )
+        self.password_reset_token_expire_minutes = int(
+            os.getenv("PASSWORD_RESET_TOKEN_EXPIRE_MINUTES", "30")
         )
         self.initial_admin_email = os.getenv("INITIAL_ADMIN_EMAIL", "")
         self.initial_admin_password = os.getenv("INITIAL_ADMIN_PASSWORD", "")

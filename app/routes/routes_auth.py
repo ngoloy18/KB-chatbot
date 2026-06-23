@@ -1,138 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter
 
-from app.db.session import get_db
-from app.dependencies.auth import get_current_user
-from app.models.models_database import User
-from app.schemas.schemas_auth import (
-    LoginRequest,
-    RefreshTokenRequest,
-    RegisterRequest,
-    RegisterResponse,
-    TokenResponse,
-    UserResponse,
-    VerifyEmailRequest,
-)
-from app.services.exceptions_auth import (
-    DuplicateEmailError,
-    EmailNotVerifiedError,
-    InactiveUserError,
-    InvalidCredentialsError,
-    InvalidVerificationTokenError,
-)
-from app.services.services_auth import auth_service
+from app.routes.routes_auth_account import router as account_router
+from app.routes.routes_auth_passwords import router as password_router
+from app.routes.routes_auth_profile import router as profile_router
+from app.routes.routes_auth_sessions import router as session_router
 
 
-router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-@router.post(
-    "/register",
-    response_model=RegisterResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Register a normal user",
-)
-async def register_user(
-    payload: RegisterRequest,
-    db: AsyncSession = Depends(get_db),
-) -> RegisterResponse:
-    """Register a normal user account; public registration never creates admins."""
-
-    try:
-        # The service owns registration rules; the route only converts errors to HTTP.
-        return await auth_service.register_user(db, payload)
-    except DuplicateEmailError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
-        ) from exc
-
-
-@router.post(
-    "/verify-email",
-    response_model=UserResponse,
-    summary="Verify registered email",
-)
-async def verify_email(
-    payload: VerifyEmailRequest,
-    db: AsyncSession = Depends(get_db),
-) -> UserResponse:
-    """Verify an email address using the registration verification token."""
-
-    try:
-        return await auth_service.verify_email(db, payload)
-    except InvalidVerificationTokenError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
-
-
-@router.post(
-    "/login",
-    response_model=TokenResponse,
-    summary="Login and receive a JWT",
-)
-async def login(
-    payload: LoginRequest,
-    db: AsyncSession = Depends(get_db),
-) -> TokenResponse:
-    """Verify credentials and return a Bearer access token."""
-
-    try:
-        # Clients copy this token into Authorization: Bearer <token>.
-        return await auth_service.login(db, payload)
-    except InvalidCredentialsError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(exc),
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
-    except InactiveUserError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(exc),
-        ) from exc
-    except EmailNotVerifiedError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(exc),
-        ) from exc
-
-
-@router.post(
-    "/refresh",
-    response_model=TokenResponse,
-    summary="Refresh access token",
-)
-async def refresh_token(
-    payload: RefreshTokenRequest,
-    db: AsyncSession = Depends(get_db),
-) -> TokenResponse:
-    """Use a refresh token to get a new Bearer access token."""
-
-    try:
-        return await auth_service.refresh_token(db, payload)
-    except InvalidCredentialsError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(exc),
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
-    except InactiveUserError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(exc),
-        ) from exc
-
-
-@router.get(
-    "/me",
-    response_model=UserResponse,
-    summary="Get current user",
-)
-async def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
-    """Return the user represented by the Bearer token."""
-
-    # get_current_user already verified the token and loaded the database user.
-    return UserResponse.model_validate(current_user)
+# Keep main.py simple while the actual auth endpoints live in focused files.
+router = APIRouter()
+router.include_router(account_router)
+router.include_router(session_router)
+router.include_router(password_router)
+router.include_router(profile_router)

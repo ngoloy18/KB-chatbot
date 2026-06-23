@@ -9,8 +9,9 @@ This project is on Week 3: Authentication + File Upload.
 
 The document API now stores uploaded documents in PostgreSQL instead of an
 in-memory dictionary. Data should stay available after the API server restarts.
-Auth endpoints use JWT access tokens, and document upload is protected by admin
-role. Admin users can also list, update, and delete user accounts.
+Auth endpoints use JWT access and refresh tokens, logout revokes refresh tokens,
+and document upload is protected by admin role. Admin users can also list,
+update, and delete user accounts.
 
 ## Requirements
 
@@ -33,7 +34,7 @@ The project tables live in the PostgreSQL schema:
 kb
 ```
 
-The database currently uses these 9 tables:
+The database currently uses these 10 tables:
 
 ```text
 kb.users
@@ -45,6 +46,7 @@ kb.chat_sessions
 kb.chat_messages
 kb.message_sources
 kb.ai_runs
+kb.refresh_tokens
 ```
 
 The six document categories are:
@@ -70,15 +72,24 @@ DATABASE_ECHO=false
 DATABASE_SCHEMA=kb
 JWT_SECRET=change_me_to_a_long_random_secret
 JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=1440
+ACCESS_TOKEN_EXPIRE_MINUTES=15
+REFRESH_TOKEN_EXPIRE_MINUTES=10080
+PASSWORD_RESET_TOKEN_EXPIRE_MINUTES=30
 INITIAL_ADMIN_EMAIL=admin@example.com
-INITIAL_ADMIN_PASSWORD=change_me
+INITIAL_ADMIN_PASSWORD=ChangeMe123!
 UPLOAD_DIR=uploads
 MAX_UPLOAD_SIZE_MB=10
 ALLOWED_UPLOAD_EXTENSIONS=.md
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_REQUESTS=100
+RATE_LIMIT_WINDOW_SECONDS=60
+RATE_LIMIT_EXCLUDED_PATHS=/docs,/openapi.json,/redoc
 ```
 
 Use your real PostgreSQL password in `.env`. Do not commit `.env`.
+
+Passwords must be 8-128 characters and include uppercase, lowercase, number,
+and special character.
 
 ## Install
 
@@ -120,13 +131,16 @@ Run:
 python tests/test_database_connection.py
 python tests/test_model_mappers.py
 python tests/test_auth_security.py
+python tests/test_auth_flow.py
+python tests/test_auth_password_validation.py
+python tests/test_rate_limiter.py
 ```
 
 Expected success output:
 
 ```text
 Database connection OK: connected to 'chatbot_db'.
-Schema OK: found kb schema and all 9 expected tables.
+Schema OK: found kb schema and all 10 expected tables.
 Categories OK: found all 6 document categories.
 ```
 
@@ -191,7 +205,11 @@ Repositories contain SQLAlchemy queries and database commits.
 - `GET /api/health` checks whether the API process is running.
 - `POST /api/auth/register` creates a normal user.
 - `POST /api/auth/verify-email` verifies a registered user's email token.
-- `POST /api/auth/login` returns a JWT access token.
+- `POST /api/auth/login` returns JWT access and refresh tokens.
+- `POST /api/auth/refresh` rotates a refresh token and returns new tokens.
+- `POST /api/auth/logout` revokes one refresh token.
+- `POST /api/auth/forgot-password` creates a password reset token.
+- `POST /api/auth/reset-password` replaces the password with a valid reset token.
 - `GET /api/auth/me` returns the current Bearer-token user.
 - `GET /api/users` lists users as admin.
 - `GET /api/users/{user_id}` returns one user as admin.
@@ -213,8 +231,12 @@ Repositories contain SQLAlchemy queries and database commits.
 - Run `python scripts/seed_admin.py`.
 - Register a normal user and copy the returned `verification_token`.
 - Verify the normal user with `POST /api/auth/verify-email`.
-- Log in with `POST /api/auth/login` and copy the access token.
+- Log in with `POST /api/auth/login` and copy the access token and refresh token.
 - Call `GET /api/auth/me` with `Authorization: Bearer <token>`.
+- Use `POST /api/auth/refresh` with the refresh token and confirm it returns new tokens.
+- Use `POST /api/auth/logout` with the latest refresh token and confirm it cannot refresh again.
+- Use `POST /api/auth/forgot-password` and copy the returned reset token.
+- Use `POST /api/auth/reset-password` and confirm login works with the new password.
 - Log in as admin and confirm `GET /api/users` returns the user list.
 - Confirm admin can update a user with `PATCH /api/users/{user_id}`.
 - Confirm admin can delete a different user with `DELETE /api/users/{user_id}`.

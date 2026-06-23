@@ -15,6 +15,7 @@ from app.models.models_chat_sessions import ChatSession
 from app.models.models_chat_messages import ChatMessage
 from app.models.models_message_sources import MessageSource
 from app.models.models_ai_runs import AIRun
+from app.models.models_refresh_tokens import RefreshToken
 
 __all__ = [
     "AIRun",
@@ -25,6 +26,7 @@ __all__ = [
     "DocumentChunk",
     "DocumentPermission",
     "MessageSource",
+    "RefreshToken",
     "SCHEMA_NAME",
     "User",
 ]
