@@ -9,10 +9,19 @@ os.environ.setdefault("JWT_SECRET", "test-secret-for-auth-security")
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.constants.constants_auth import JWT_ROLE_CLAIM, JWT_SUBJECT_CLAIM, USER_ROLE_ADMIN
+from app.constants.constants_auth import (
+    JWT_ACCESS_TOKEN_TYPE,
+    JWT_REFRESH_TOKEN_TYPE,
+    JWT_ROLE_CLAIM,
+    JWT_SUBJECT_CLAIM,
+    JWT_TOKEN_TYPE_CLAIM,
+    USER_ROLE_ADMIN,
+)
 from app.core.security import (
     create_access_token,
+    create_refresh_token,
     decode_access_token,
+    decode_refresh_token,
     hash_password,
     verify_password,
 )
@@ -31,6 +40,19 @@ def check_auth_security() -> None:
     payload = decode_access_token(token)
     assert payload[JWT_SUBJECT_CLAIM] == str(user_id)
     assert payload[JWT_ROLE_CLAIM] == USER_ROLE_ADMIN
+    assert payload[JWT_TOKEN_TYPE_CLAIM] == JWT_ACCESS_TOKEN_TYPE
+
+    refresh_token = create_refresh_token(user_id=user_id)
+    refresh_payload = decode_refresh_token(refresh_token)
+    assert refresh_payload[JWT_SUBJECT_CLAIM] == str(user_id)
+    assert refresh_payload[JWT_TOKEN_TYPE_CLAIM] == JWT_REFRESH_TOKEN_TYPE
+
+    try:
+        decode_access_token(refresh_token)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Refresh tokens should not decode as access tokens.")
 
     print("Auth security helpers OK.")
 

@@ -42,10 +42,21 @@ class LoginRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    """JWT returned after a successful login."""
+    """JWT tokens returned after successful login or refresh."""
 
     access_token: str
+    refresh_token: str | None = None
     token_type: str = TOKEN_TYPE_BEARER
+
+
+class RefreshTokenRequest(BaseModel):
+    """Request body for getting a new access token."""
+
+    refresh_token: str = Field(
+        ...,
+        min_length=16,
+        description="Refresh token returned by the login endpoint.",
+    )
 
 
 class VerifyEmailRequest(BaseModel):

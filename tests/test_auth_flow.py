@@ -12,7 +12,12 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from app.constants.constants_auth import TOKEN_TYPE_BEARER, USER_ROLE_USER
 from app.db.session import AsyncSessionLocal
 from app.models.models_database import User
-from app.schemas.schemas_auth import LoginRequest, RegisterRequest, VerifyEmailRequest
+from app.schemas.schemas_auth import (
+    LoginRequest,
+    RefreshTokenRequest,
+    RegisterRequest,
+    VerifyEmailRequest,
+)
 from app.services.exceptions_auth import EmailNotVerifiedError
 from app.services.services_auth import auth_service
 
@@ -57,6 +62,19 @@ async def check_normal_user_auth_flow() -> None:
             )
             if token.token_type != TOKEN_TYPE_BEARER or not token.access_token:
                 raise AssertionError("Login did not return a Bearer access token.")
+            if not token.refresh_token:
+                raise AssertionError("Login did not return a refresh token.")
+
+            refreshed_token = await auth_service.refresh_token(
+                db,
+                RefreshTokenRequest(refresh_token=token.refresh_token),
+            )
+            if refreshed_token.token_type != TOKEN_TYPE_BEARER:
+                raise AssertionError("Refresh did not return a Bearer token.")
+            if not refreshed_token.access_token:
+                raise AssertionError("Refresh did not return a new access token.")
+            if refreshed_token.refresh_token is not None:
+                raise AssertionError("Refresh should only return a new access token.")
         finally:
             # Keep the real local database clean after this test creates a user.
             await db.execute(delete(User).where(User.email == email))

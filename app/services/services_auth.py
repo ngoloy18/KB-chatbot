@@ -1,13 +1,21 @@
 from datetime import UTC, datetime
 from secrets import token_urlsafe
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.constants_auth import USER_ROLE_USER
-from app.core.security import create_access_token, hash_password, verify_password
+from app.constants.constants_auth import JWT_SUBJECT_CLAIM, USER_ROLE_USER
+from app.core.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
+    hash_password,
+    verify_password,
+)
 from app.repositories.repositories_users import user_repository
 from app.schemas.schemas_auth import (
     LoginRequest,
+    RefreshTokenRequest,
     RegisterRequest,
     RegisterResponse,
     TokenResponse,
@@ -74,7 +82,7 @@ class AuthService:
         return UserResponse.model_validate(user)
 
     async def login(self, db: AsyncSession, payload: LoginRequest) -> TokenResponse:
-        """Verify credentials and return a JWT access token."""
+        """Verify credentials and return JWT access and refresh tokens."""
 
         user = await user_repository.get_by_email(db, payload.email)
         # Use the same error for missing users and wrong passwords so attackers
@@ -86,9 +94,34 @@ class AuthService:
         if not user.is_email_verified:
             raise EmailNotVerifiedError("Please verify your email before logging in.")
 
-        # The token is what Swagger/clients send later in Authorization headers.
-        token = create_access_token(user_id=user.id, role=user.role)
-        return TokenResponse(access_token=token)
+        # Access tokens are sent to protected endpoints in Authorization headers.
+        # Refresh tokens are kept by the client and used only to request new access.
+        access_token = create_access_token(user_id=user.id, role=user.role)
+        refresh_token = create_refresh_token(user_id=user.id)
+        return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+
+    async def refresh_token(
+        self,
+        db: AsyncSession,
+        payload: RefreshTokenRequest,
+    ) -> TokenResponse:
+        """Use a valid refresh token to create a new access token."""
+
+        try:
+            token_payload = decode_refresh_token(payload.refresh_token)
+            user_id = UUID(str(token_payload.get(JWT_SUBJECT_CLAIM)))
+        except (TypeError, ValueError):
+            raise InvalidCredentialsError("Invalid or expired refresh token.")
+
+        # Load the user again so disabled/deleted accounts cannot keep refreshing.
+        user = await user_repository.get_by_id(db, user_id)
+        if user is None:
+            raise InvalidCredentialsError("Invalid or expired refresh token.")
+        if not user.is_active:
+            raise InactiveUserError("This user is inactive.")
+
+        access_token = create_access_token(user_id=user.id, role=user.role)
+        return TokenResponse(access_token=access_token)
 
 
 auth_service = AuthService()
