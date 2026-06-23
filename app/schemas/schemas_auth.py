@@ -113,7 +113,7 @@ class ForgotPasswordResponse(BaseModel):
     """Password reset response with local-development reset token."""
 
     message: str
-    # In production this token should be emailed, not shown in the API response.
+    # Returned only when EMAIL_RETURN_DEV_TOKENS=true for local Swagger testing.
     reset_token: str | None = None
 
 
@@ -162,5 +162,5 @@ class RegisterResponse(BaseModel):
     """Registration response with local-development verification token."""
 
     user: UserResponse
-    # In production this token should be emailed, not shown in the API response.
-    verification_token: str
+    # Returned only when EMAIL_RETURN_DEV_TOKENS=true for local Swagger testing.
+    verification_token: str | None = None

@@ -42,6 +42,7 @@ from app.services.exceptions_auth import (
     InvalidPasswordResetTokenError,
     InvalidVerificationTokenError,
 )
+from app.services.services_email import email_service
 
 
 class AuthService:
@@ -72,9 +73,14 @@ class AuthService:
             email_verification_token=verification_token,
             email_verification_sent_at=datetime.now(UTC),
         )
+        await email_service.send_verification_email(user.email, verification_token)
         return RegisterResponse(
             user=UserResponse.model_validate(user),
-            verification_token=verification_token,
+            verification_token=(
+                verification_token
+                if settings.email_return_dev_tokens
+                else None
+            ),
         )
 
     async def verify_email(
@@ -212,7 +218,11 @@ class AuthService:
         user.password_reset_token_hash = hash_token(reset_token)
         user.password_reset_sent_at = datetime.now(UTC)
         await db.commit()
-        return ForgotPasswordResponse(message=public_message, reset_token=reset_token)
+        await email_service.send_password_reset_email(user.email, reset_token)
+        return ForgotPasswordResponse(
+            message=public_message,
+            reset_token=reset_token if settings.email_return_dev_tokens else None,
+        )
 
     async def reset_password(
         self,

@@ -55,6 +55,26 @@ class Settings:
         self.initial_admin_email = os.getenv("INITIAL_ADMIN_EMAIL", "")
         self.initial_admin_password = os.getenv("INITIAL_ADMIN_PASSWORD", "")
 
+        # Email settings are used for verification and password reset messages.
+        self.email_enabled = os.getenv("EMAIL_ENABLED", "false").lower() == "true"
+        self.email_return_dev_tokens = (
+            os.getenv("EMAIL_RETURN_DEV_TOKENS", "true").lower() == "true"
+        )
+        self.smtp_host = os.getenv("SMTP_HOST", "")
+        self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
+        self.smtp_username = os.getenv("SMTP_USERNAME", "")
+        self.smtp_password = os.getenv("SMTP_PASSWORD", "")
+        self.smtp_from_email = os.getenv("SMTP_FROM_EMAIL", self.smtp_username)
+        self.smtp_use_tls = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
+        self.frontend_verify_email_url = os.getenv(
+            "FRONTEND_VERIFY_EMAIL_URL",
+            "http://127.0.0.1:8000/docs",
+        )
+        self.frontend_reset_password_url = os.getenv(
+            "FRONTEND_RESET_PASSWORD_URL",
+            "http://127.0.0.1:8000/docs",
+        )
+
         # Upload settings make file storage rules configurable per environment.
         self.upload_dir = os.getenv("UPLOAD_DIR", "uploads")
         self.max_upload_size_mb = int(os.getenv("MAX_UPLOAD_SIZE_MB", "10"))
