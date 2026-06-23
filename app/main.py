@@ -3,6 +3,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.exception_handlers import register_exception_handlers
+from app.core.rate_limiter import RateLimitMiddleware
 from app.db.session import engine
 from app.routes.routes_auth import router as auth_router
 from app.routes.routes_document_permissions import router as document_permissions_router
@@ -27,6 +28,13 @@ app = FastAPI(
     description=settings.app_description,
 )
 register_exception_handlers(app)
+app.add_middleware(
+    RateLimitMiddleware,
+    enabled=settings.rate_limit_enabled,
+    max_requests=settings.rate_limit_requests,
+    window_seconds=settings.rate_limit_window_seconds,
+    excluded_paths=settings.rate_limit_excluded_paths,
+)
 
 
 @app.on_event("startup")

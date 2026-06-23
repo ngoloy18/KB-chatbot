@@ -57,6 +57,18 @@ class Settings:
             os.getenv("ALLOWED_UPLOAD_EXTENSIONS", ".md")
         )
 
+        # Rate limit settings protect the API from repeated requests by one client.
+        self.rate_limit_enabled = (
+            os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
+        )
+        self.rate_limit_requests = int(os.getenv("RATE_LIMIT_REQUESTS", "100"))
+        self.rate_limit_window_seconds = int(
+            os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60")
+        )
+        self.rate_limit_excluded_paths = self._parse_csv_values(
+            os.getenv("RATE_LIMIT_EXCLUDED_PATHS", "/docs,/openapi.json,/redoc")
+        )
+
     @staticmethod
     def _parse_upload_extensions(raw_value: str) -> set[str]:
         """Convert comma-separated extensions from .env into normalized values."""
@@ -69,6 +81,16 @@ class Settings:
         return {
             extension if extension.startswith(".") else f".{extension}"
             for extension in extensions
+        }
+
+    @staticmethod
+    def _parse_csv_values(raw_value: str) -> set[str]:
+        """Convert comma-separated setting values into a clean set."""
+
+        return {
+            value.strip()
+            for value in raw_value.split(",")
+            if value.strip()
         }
 
 
