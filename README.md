@@ -179,6 +179,7 @@ smoke test:
 
 ```powershell
 py tests/test_api_smoke.py
+py tests/test_upload_rules.py
 ```
 
 Expected success output:
