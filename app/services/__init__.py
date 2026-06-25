@@ -1,4 +1,4 @@
-from app.services.services_documents import DocumentService
+from app.services.documents.service import DocumentService
 
 
 document_service = DocumentService()

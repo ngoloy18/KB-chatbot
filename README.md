@@ -77,13 +77,13 @@ REFRESH_TOKEN_EXPIRE_MINUTES=10080
 PASSWORD_RESET_TOKEN_EXPIRE_MINUTES=30
 INITIAL_ADMIN_EMAIL=admin@example.com
 INITIAL_ADMIN_PASSWORD=ChangeMe123!
-EMAIL_ENABLED=false
+EMAIL_ENABLED=true
 EMAIL_RETURN_DEV_TOKENS=true
-SMTP_HOST=sandbox.smtp.mailtrap.io
-SMTP_PORT=2525
-SMTP_USERNAME=your_mailtrap_smtp_username
-SMTP_PASSWORD=your_mailtrap_smtp_password
-SMTP_FROM_EMAIL=no-reply@kb-chatbot.local
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your_sender_email@gmail.com
+SMTP_PASSWORD=your_google_app_password
+SMTP_FROM_EMAIL=your_sender_email@gmail.com
 SMTP_USE_TLS=true
 FRONTEND_VERIFY_EMAIL_URL=http://127.0.0.1:8000/docs
 FRONTEND_RESET_PASSWORD_URL=http://127.0.0.1:8000/docs
@@ -101,7 +101,7 @@ Use your real PostgreSQL password in `.env`. Do not commit `.env`.
 Passwords must be 8-128 characters and include uppercase, lowercase, number,
 and special character.
 
-For local email testing, use Mailtrap SMTP credentials and set:
+For local email testing with Gmail SMTP, use a Google App Password and set:
 
 ```env
 EMAIL_ENABLED=true
@@ -109,7 +109,7 @@ EMAIL_RETURN_DEV_TOKENS=true
 ```
 
 `EMAIL_RETURN_DEV_TOKENS=true` keeps verification and reset tokens visible in
-Swagger while also sending emails to Mailtrap. In production, set it to `false`.
+Swagger while also sending emails. In production, set it to `false`.
 
 ## Install
 
@@ -197,17 +197,36 @@ Running it twice does not create duplicate admins.
 
 ```text
 app/
-  core/       shared config and enums
-  dependencies/ auth dependencies such as current-user/admin checks
-  db/         SQLAlchemy engine, session, and Base
-  models/     split SQLAlchemy ORM model files
-  repositories/ database query layer
-  routes/     FastAPI routers
-  schemas/    Pydantic request and response models
-  services/   business logic
-  main.py     FastAPI app entrypoint
-alembic/      database migrations
-tests/        local test scripts
+  constants/      shared app constants
+  core/           shared config, security, errors, and middleware
+  dependencies/   FastAPI dependencies such as current-user/admin checks
+  db/             SQLAlchemy engine, session, and Base
+  models/
+    auth/         user and refresh-token ORM models
+    chat/         chat/session/message/source/AI run ORM models
+    common/       shared ORM mixins
+    documents/    document/category/chunk/permission ORM models
+    database.py   central model exports for Alembic and compatibility
+  repositories/
+    auth/         refresh-token persistence
+    documents/    document persistence
+    users/        user persistence
+  routes/
+    auth/         register/login/logout/password/profile routes
+    documents/    document and permission routes
+    health/       health route
+    users/        admin user routes
+  schemas/
+    auth/         auth request/response schemas
+    documents/    document request/response schemas
+    users/        user admin schemas
+  services/
+    auth/         auth business logic and email sender
+    documents/    document business logic
+    users/        user admin business logic
+  main.py         FastAPI app entrypoint
+alembic/          database migrations
+tests/            local test scripts
 ```
 
 The request flow is:
@@ -250,14 +269,14 @@ Repositories contain SQLAlchemy queries and database commits.
 - Start the API and confirm the terminal prints `database connect is working`.
 - Run `python scripts/seed_admin.py`.
 - Register a normal user and copy the returned `verification_token`.
-- If `EMAIL_ENABLED=true`, confirm the verification email appears in Mailtrap.
+- If `EMAIL_ENABLED=true`, confirm the verification email appears in the recipient inbox.
 - Verify the normal user with `POST /api/auth/verify-email`.
 - Log in with `POST /api/auth/login` and copy the access token and refresh token.
 - Call `GET /api/auth/me` with `Authorization: Bearer <token>`.
 - Use `POST /api/auth/refresh` with the refresh token and confirm it returns new tokens.
 - Use `POST /api/auth/logout` with the latest refresh token and confirm it cannot refresh again.
 - Use `POST /api/auth/forgot-password` and copy the returned reset token.
-- If `EMAIL_ENABLED=true`, confirm the password reset email appears in Mailtrap.
+- If `EMAIL_ENABLED=true`, confirm the password reset email appears in the recipient inbox.
 - Use `POST /api/auth/reset-password` and confirm login works with the new password.
 - Log in as admin and confirm `GET /api/users` returns the user list.
 - Confirm admin can update a user with `PATCH /api/users/{user_id}`.

@@ -1,4 +1,4 @@
-from app.models.models_database import (
+from app.models.database import (
     AIRun,
     ChatMessage,
     ChatSession,
@@ -7,6 +7,7 @@ from app.models.models_database import (
     DocumentChunk,
     DocumentPermission,
     MessageSource,
+    RefreshToken,
     User,
 )
 
@@ -19,5 +20,6 @@ __all__ = [
     "DocumentChunk",
     "DocumentPermission",
     "MessageSource",
+    "RefreshToken",
     "User",
 ]

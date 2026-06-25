@@ -11,8 +11,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.constants.constants_auth import TOKEN_TYPE_BEARER, USER_ROLE_USER
 from app.db.session import AsyncSessionLocal
-from app.models.models_database import User
-from app.schemas.schemas_auth import (
+from app.models.database import User
+from app.schemas.auth.schemas import (
     ForgotPasswordRequest,
     LoginRequest,
     RefreshTokenRequest,
@@ -20,9 +20,9 @@ from app.schemas.schemas_auth import (
     ResetPasswordRequest,
     VerifyEmailRequest,
 )
-from app.services.exceptions_auth import EmailNotVerifiedError
-from app.services.exceptions_auth import InvalidCredentialsError
-from app.services.services_auth import auth_service
+from app.services.auth.exceptions import EmailNotVerifiedError
+from app.services.auth.exceptions import InvalidCredentialsError
+from app.services.auth.service import auth_service
 
 
 async def check_normal_user_auth_flow() -> None:

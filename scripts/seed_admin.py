@@ -10,8 +10,8 @@ from app.core.config import settings
 from app.core.security import hash_password
 from app.db.session import AsyncSessionLocal
 from app.constants.constants_auth import USER_ROLE_ADMIN
-from app.repositories.repositories_users import user_repository
-from app.schemas.schemas_auth import validate_strong_password
+from app.repositories.users.users import user_repository
+from app.schemas.auth.schemas import validate_strong_password
 
 
 async def seed_admin() -> None:

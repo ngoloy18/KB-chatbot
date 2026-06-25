@@ -7,7 +7,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.core.config import settings
-from app.services.services_email import email_service
+from app.services.auth.email import email_service
 
 
 async def check_email_service_config() -> None:

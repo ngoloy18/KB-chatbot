@@ -7,8 +7,8 @@ from pydantic import ValidationError
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.schemas.schemas_auth import RegisterRequest, ResetPasswordRequest
-from app.schemas.schemas_users import UserUpdateRequest
+from app.schemas.auth.schemas import RegisterRequest, ResetPasswordRequest
+from app.schemas.users.schemas import UserUpdateRequest
 
 
 def expect_validation_error(callback) -> None:

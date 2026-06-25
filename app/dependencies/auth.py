@@ -11,8 +11,8 @@ from app.constants.constants_auth import (
 )
 from app.core.security import decode_access_token
 from app.db.session import get_db
-from app.models.models_database import User
-from app.repositories.repositories_users import user_repository
+from app.models.database import User
+from app.repositories.users.users import user_repository
 
 
 # HTTPBearer reads the Authorization: Bearer <token> header from each request.
