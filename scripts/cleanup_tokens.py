@@ -12,23 +12,34 @@ from app.db.session import AsyncSessionLocal
 from app.repositories.auth.email_verification_tokens import (
     email_verification_token_repository,
 )
+from app.repositories.auth.password_reset_tokens import password_reset_token_repository
 
 
 async def cleanup_tokens() -> None:
-    """Delete old used/expired email verification tokens."""
+    """Delete old used/expired auth helper tokens."""
 
     # Retention is configurable so local/dev/prod can keep different history.
-    older_than = datetime.now(UTC) - timedelta(
+    email_older_than = datetime.now(UTC) - timedelta(
         days=settings.email_verification_token_retention_days
+    )
+    password_reset_older_than = datetime.now(UTC) - timedelta(
+        days=settings.password_reset_token_retention_days
     )
 
     async with AsyncSessionLocal() as db:
-        deleted_count = await email_verification_token_repository.delete_old_tokens(
+        deleted_email_count = await email_verification_token_repository.delete_old_tokens(
             db,
-            older_than,
+            email_older_than,
+        )
+        deleted_password_reset_count = (
+            await password_reset_token_repository.delete_old_tokens(
+                db,
+                password_reset_older_than,
+            )
         )
 
-    print(f"Deleted {deleted_count} old email verification token(s).")
+    print(f"Deleted {deleted_email_count} old email verification token(s).")
+    print(f"Deleted {deleted_password_reset_count} old password reset token(s).")
 
 
 if __name__ == "__main__":

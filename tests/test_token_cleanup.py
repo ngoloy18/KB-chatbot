@@ -12,15 +12,16 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.core.security import hash_password
 from app.db.session import AsyncSessionLocal
-from app.models.database import EmailVerificationToken, User
+from app.models.database import EmailVerificationToken, PasswordResetToken, User
 from app.repositories.auth.email_verification_tokens import (
     email_verification_token_repository,
 )
+from app.repositories.auth.password_reset_tokens import password_reset_token_repository
 from app.repositories.users.users import user_repository
 
 
 async def check_token_cleanup() -> None:
-    """Verify cleanup deletes only old used/expired verification tokens."""
+    """Verify cleanup deletes only old used/expired auth helper tokens."""
 
     email = f"token_cleanup_{uuid4().hex[:8]}@example.com"
     now = datetime.now(UTC)
@@ -61,6 +62,34 @@ async def check_token_cleanup() -> None:
                 updated_at=old_time,
             )
             db.add_all([old_used_token, old_expired_token, active_token])
+            old_used_reset_token = PasswordResetToken(
+                user_id=user.id,
+                token_hash=f"{uuid4().hex}{uuid4().hex}",
+                expires_at=now + timedelta(days=1),
+                is_used=True,
+                used_at=old_time,
+                created_at=old_time,
+                updated_at=old_time,
+            )
+            old_expired_reset_token = PasswordResetToken(
+                user_id=user.id,
+                token_hash=f"{uuid4().hex}{uuid4().hex}",
+                expires_at=old_time,
+                is_used=False,
+                created_at=old_time,
+                updated_at=old_time,
+            )
+            active_reset_token = PasswordResetToken(
+                user_id=user.id,
+                token_hash=f"{uuid4().hex}{uuid4().hex}",
+                expires_at=now + timedelta(days=1),
+                is_used=False,
+                created_at=old_time,
+                updated_at=old_time,
+            )
+            db.add_all(
+                [old_used_reset_token, old_expired_reset_token, active_reset_token]
+            )
             await db.commit()
 
             deleted_count = await email_verification_token_repository.delete_old_tokens(
@@ -82,6 +111,30 @@ async def check_token_cleanup() -> None:
                 raise AssertionError("Cleanup should delete old used tokens.")
             if old_expired_token.token_hash in remaining_hashes:
                 raise AssertionError("Cleanup should delete old expired tokens.")
+
+            deleted_reset_count = (
+                await password_reset_token_repository.delete_old_tokens(
+                    db,
+                    older_than,
+                )
+            )
+            if deleted_reset_count != 2:
+                raise AssertionError(
+                    f"Expected 2 deleted reset tokens, got {deleted_reset_count}."
+                )
+
+            remaining_reset_tokens = await db.scalars(
+                select(PasswordResetToken).where(PasswordResetToken.user_id == user.id)
+            )
+            remaining_reset_hashes = {
+                token.token_hash for token in remaining_reset_tokens
+            }
+            if active_reset_token.token_hash not in remaining_reset_hashes:
+                raise AssertionError("Cleanup should keep active reset tokens.")
+            if old_used_reset_token.token_hash in remaining_reset_hashes:
+                raise AssertionError("Cleanup should delete old used reset tokens.")
+            if old_expired_reset_token.token_hash in remaining_reset_hashes:
+                raise AssertionError("Cleanup should delete old expired reset tokens.")
         finally:
             await db.execute(delete(User).where(User.email == email))
             await db.commit()

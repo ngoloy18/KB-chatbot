@@ -52,6 +52,9 @@ class Settings:
         self.password_reset_token_expire_minutes = int(
             os.getenv("PASSWORD_RESET_TOKEN_EXPIRE_MINUTES", "30")
         )
+        self.password_reset_token_retention_days = int(
+            os.getenv("PASSWORD_RESET_TOKEN_RETENTION_DAYS", "7")
+        )
         self.email_verification_token_expire_minutes = int(
             os.getenv("EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES", "1440")
         )

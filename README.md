@@ -77,6 +77,7 @@ JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=15
 REFRESH_TOKEN_EXPIRE_MINUTES=10080
 PASSWORD_RESET_TOKEN_EXPIRE_MINUTES=30
+PASSWORD_RESET_TOKEN_RETENTION_DAYS=7
 EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES=1440
 EMAIL_VERIFICATION_TOKEN_RETENTION_DAYS=7
 INITIAL_ADMIN_EMAIL=admin@example.com
@@ -122,8 +123,9 @@ Swagger while also sending emails. In production, set it to `false`.
 easy to abuse, such as login, register, password reset, resend verification, and
 document upload.
 
-`EMAIL_VERIFICATION_TOKEN_RETENTION_DAYS=7` means used or expired verification
-token rows can be deleted after 7 days by the cleanup script.
+`EMAIL_VERIFICATION_TOKEN_RETENTION_DAYS=7` and
+`PASSWORD_RESET_TOKEN_RETENTION_DAYS=7` mean used or expired auth token rows can
+be deleted after 7 days by the cleanup script.
 
 ## Install
 
@@ -221,9 +223,9 @@ Running it twice does not create duplicate admins.
 
 ## Cleanup Old Tokens
 
-Email verification tokens are stored for short-term debugging/security history.
-Delete used or expired verification tokens older than the configured retention
-window with:
+Email verification and password reset tokens are stored for short-term
+debugging/security history. Delete used or expired token rows older than the
+configured retention windows with:
 
 ```powershell
 py scripts/cleanup_tokens.py
