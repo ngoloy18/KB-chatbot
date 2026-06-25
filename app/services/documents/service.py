@@ -2,7 +2,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.constants_permissions import (
+from app.constants.permissions import (
     DOCUMENT_DELETE_PERMISSIONS,
     DOCUMENT_READ_PERMISSIONS,
     DOCUMENT_WRITE_PERMISSIONS,

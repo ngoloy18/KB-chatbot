@@ -197,8 +197,18 @@ Running it twice does not create duplicate admins.
 
 ```text
 app/
-  constants/      shared app constants
-  core/           shared config, security, errors, and middleware
+  constants/
+    ai/           AI run status constants
+    auth/         auth, JWT, role, and password constants
+    chat/         chat role constants
+    database/     database schema constants
+    documents/    document status/upload constants
+    permissions/  document permission constants
+  core/
+    config/       environment settings and document category enum
+    errors/       shared exception handlers
+    middleware/   shared middleware such as rate limiting
+    security/     password hashing and JWT helpers
   dependencies/   FastAPI dependencies such as current-user/admin checks
   db/             SQLAlchemy engine, session, and Base
   models/

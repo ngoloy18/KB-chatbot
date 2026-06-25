@@ -9,7 +9,7 @@ from sqlalchemy import delete
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.constants.constants_auth import TOKEN_TYPE_BEARER, USER_ROLE_USER
+from app.constants.auth import TOKEN_TYPE_BEARER, USER_ROLE_USER
 from app.db.session import AsyncSessionLocal
 from app.models.database import User
 from app.schemas.auth.schemas import (

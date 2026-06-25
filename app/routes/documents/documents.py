@@ -12,8 +12,8 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID, uuid4
 
-from app.constants.constants_auth import USER_ROLE_ADMIN
-from app.constants.constants_documents import (
+from app.constants.auth import USER_ROLE_ADMIN
+from app.constants.documents import (
     DEFAULT_UPLOAD_CONTENT_TYPE,
     DEFAULT_UPLOAD_FILE_NAME,
 )

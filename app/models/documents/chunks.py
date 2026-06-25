@@ -5,7 +5,7 @@ from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-from app.constants.constants_database import SCHEMA_NAME
+from app.constants.database import SCHEMA_NAME
 from app.models.common.mixins import TimestampMixin
 
 

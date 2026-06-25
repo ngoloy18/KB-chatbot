@@ -4,7 +4,7 @@ from sqlalchemy import CheckConstraint, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.constants.constants_documents import (
+from app.constants.documents import (
     DOCUMENT_STATUS_FAILED,
     DOCUMENT_STATUS_PROCESSING,
     DOCUMENT_STATUS_READY,
@@ -12,7 +12,7 @@ from app.constants.constants_documents import (
 )
 from app.core.config import DocumentCategory
 from app.db.base import Base
-from app.constants.constants_database import SCHEMA_NAME
+from app.constants.database import SCHEMA_NAME
 from app.models.common.mixins import TimestampMixin
 
 

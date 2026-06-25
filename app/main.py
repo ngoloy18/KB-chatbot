@@ -2,8 +2,8 @@ from fastapi import APIRouter, FastAPI
 from sqlalchemy import text
 
 from app.core.config import settings
-from app.core.exception_handlers import register_exception_handlers
-from app.core.rate_limiter import RateLimitMiddleware
+from app.core.errors.exception_handlers import register_exception_handlers
+from app.core.middleware.rate_limiter import RateLimitMiddleware
 from app.db.session import engine
 from app.routes.auth import router as auth_router
 from app.routes.documents.permissions import router as document_permissions_router

@@ -4,13 +4,13 @@ from sqlalchemy import CheckConstraint, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.constants.constants_permissions import (
+from app.constants.permissions import (
     DOCUMENT_PERMISSION_OWNER,
     DOCUMENT_PERMISSION_READ,
     DOCUMENT_PERMISSION_WRITE,
 )
 from app.db.base import Base
-from app.constants.constants_database import SCHEMA_NAME
+from app.constants.database import SCHEMA_NAME
 from app.models.common.mixins import TimestampMixin
 
 

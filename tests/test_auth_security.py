@@ -9,7 +9,7 @@ os.environ.setdefault("JWT_SECRET", "test-secret-for-auth-security")
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.constants.constants_auth import (
+from app.constants.auth import (
     JWT_ACCESS_TOKEN_TYPE,
     JWT_REFRESH_TOKEN_TYPE,
     JWT_ROLE_CLAIM,

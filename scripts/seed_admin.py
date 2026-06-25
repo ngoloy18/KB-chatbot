@@ -9,7 +9,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from app.core.config import settings
 from app.core.security import hash_password
 from app.db.session import AsyncSessionLocal
-from app.constants.constants_auth import USER_ROLE_ADMIN
+from app.constants.auth import USER_ROLE_ADMIN
 from app.repositories.users.users import user_repository
 from app.schemas.auth.schemas import validate_strong_password
 

@@ -9,7 +9,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.core.config import DocumentCategory, settings
-from app.constants.constants_database import SCHEMA_NAME
+from app.constants.database import SCHEMA_NAME
 from app.db.session import engine
 
 

@@ -4,8 +4,8 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.constants.constants_documents import DOCUMENT_STATUS_READY
-from app.constants.constants_permissions import DOCUMENT_READ_PERMISSIONS
+from app.constants.documents import DOCUMENT_STATUS_READY
+from app.constants.permissions import DOCUMENT_READ_PERMISSIONS
 from app.core.config import DocumentCategory
 from app.models.database import Document, DocumentCategoryModel, DocumentPermission
 from app.schemas.documents.schemas import DocumentCreate, DocumentUpdate

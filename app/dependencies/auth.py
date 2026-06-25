@@ -4,7 +4,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.constants_auth import (
+from app.constants.auth import (
     AUTH_SCHEME_BEARER,
     JWT_SUBJECT_CLAIM,
     USER_ROLE_ADMIN,

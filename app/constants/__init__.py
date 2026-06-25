@@ -1,11 +1,11 @@
 """Shared application constants."""
 
-from app.constants.constants_ai import (
+from app.constants.ai import (
     AI_RUN_STATUS_FAILED,
     AI_RUN_STATUS_SUCCESS,
     AI_RUN_STATUSES,
 )
-from app.constants.constants_auth import (
+from app.constants.auth import (
     AUTH_SCHEME_BEARER,
     JWT_ACCESS_TOKEN_TYPE,
     JWT_EXPIRES_AT_CLAIM,
@@ -22,14 +22,14 @@ from app.constants.constants_auth import (
     USER_ROLE_USER,
     USER_ROLES,
 )
-from app.constants.constants_chat import (
+from app.constants.chat import (
     CHAT_ROLE_ASSISTANT,
     CHAT_ROLE_SYSTEM,
     CHAT_ROLE_USER,
     CHAT_ROLES,
 )
-from app.constants.constants_database import SCHEMA_NAME
-from app.constants.constants_documents import (
+from app.constants.database import SCHEMA_NAME
+from app.constants.documents import (
     DEFAULT_UPLOAD_CONTENT_TYPE,
     DEFAULT_UPLOAD_FILE_NAME,
     DOCUMENT_STATUS_FAILED,
@@ -38,7 +38,7 @@ from app.constants.constants_documents import (
     DOCUMENT_STATUS_UPLOADED,
     DOCUMENT_STATUSES,
 )
-from app.constants.constants_permissions import (
+from app.constants.permissions import (
     DOCUMENT_DELETE_PERMISSIONS,
     DOCUMENT_PERMISSION_OWNER,
     DOCUMENT_PERMISSION_READ,

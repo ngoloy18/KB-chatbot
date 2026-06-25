@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.constants_auth import USER_ROLE_USER
+from app.constants.auth import USER_ROLE_USER
 from app.models.database import Document, User
 
 

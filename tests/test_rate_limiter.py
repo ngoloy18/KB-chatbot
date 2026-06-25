@@ -5,7 +5,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.core.rate_limiter import InMemoryRateLimiter
+from app.core.middleware.rate_limiter import InMemoryRateLimiter
 
 
 def check_rate_limiter() -> None:

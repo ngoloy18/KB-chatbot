@@ -5,9 +5,9 @@ from sqlalchemy import Boolean, CheckConstraint, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.constants.constants_auth import USER_ROLE_ADMIN, USER_ROLE_USER
+from app.constants.auth import USER_ROLE_ADMIN, USER_ROLE_USER
 from app.db.base import Base
-from app.constants.constants_database import SCHEMA_NAME
+from app.constants.database import SCHEMA_NAME
 from app.models.common.mixins import TimestampMixin
 
 

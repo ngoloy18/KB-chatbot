@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from app.constants.constants_auth import (
+from app.constants.auth import (
     PASSWORD_MAX_LENGTH,
     PASSWORD_MIN_LENGTH,
     PASSWORD_REQUIREMENTS_DESCRIPTION,

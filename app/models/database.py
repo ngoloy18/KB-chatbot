@@ -5,7 +5,7 @@ Importing this module still loads every model, which keeps older imports and
 Alembic metadata discovery working.
 """
 
-from app.constants.constants_database import SCHEMA_NAME
+from app.constants.database import SCHEMA_NAME
 from app.models.documents.categories import DocumentCategoryModel
 from app.models.auth.users import User
 from app.models.documents.documents import Document

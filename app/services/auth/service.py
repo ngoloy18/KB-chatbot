@@ -4,7 +4,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.constants_auth import (
+from app.constants.auth import (
     JWT_EXPIRES_AT_CLAIM,
     JWT_ID_CLAIM,
     JWT_SUBJECT_CLAIM,

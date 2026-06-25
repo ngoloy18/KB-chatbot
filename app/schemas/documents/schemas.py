@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import Form
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.constants.constants_permissions import (
+from app.constants.permissions import (
     DOCUMENT_PERMISSION_OWNER,
     DOCUMENT_PERMISSION_READ,
     DOCUMENT_PERMISSION_WRITE,
