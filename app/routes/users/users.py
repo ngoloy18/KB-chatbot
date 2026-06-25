@@ -91,6 +91,24 @@ async def soft_delete_user(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
+@router.patch(
+    "/{user_id}/restore",
+    response_model=UserAdminResponse,
+    summary="Restore one soft-deleted user as admin",
+)
+async def restore_user(
+    user_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+) -> UserAdminResponse:
+    """Reactivate a user account that was previously soft-deleted."""
+
+    try:
+        return await user_service.restore_user(db, user_id)
+    except UserNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
 @router.delete(
     "/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,

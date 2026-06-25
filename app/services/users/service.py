@@ -132,5 +132,22 @@ class UserService:
         await db.refresh(user)
         return UserAdminResponse.model_validate(user)
 
+    async def restore_user(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+    ) -> UserAdminResponse:
+        """Reactivate a soft-deleted user account."""
+
+        user = await user_repository.get_by_id(db, user_id)
+        if user is None:
+            raise UserNotFoundError("User not found.")
+
+        # Restore only reverses the soft-delete flag; email verification stays unchanged.
+        user.is_active = True
+        await db.commit()
+        await db.refresh(user)
+        return UserAdminResponse.model_validate(user)
+
 
 user_service = UserService()

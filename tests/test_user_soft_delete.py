@@ -81,6 +81,19 @@ async def check_user_soft_delete() -> None:
             )
             if active_verification_token is not None:
                 raise AssertionError("Soft delete should revoke verification tokens.")
+
+            restored_response = await user_service.restore_user(
+                db=db,
+                user_id=user.id,
+            )
+            if not restored_response.is_active:
+                raise AssertionError("Restored user should be active.")
+
+            restored_user = await user_repository.get_by_id(db, user.id)
+            if restored_user is None:
+                raise AssertionError("Restore should keep the user row.")
+            if not restored_user.is_active:
+                raise AssertionError("User row should be marked active after restore.")
         finally:
             await db.execute(delete(User).where(User.email == email))
             await db.commit()
