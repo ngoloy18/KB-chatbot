@@ -167,6 +167,8 @@ python tests/test_auth_security.py
 python tests/test_auth_flow.py
 python tests/test_auth_password_validation.py
 python tests/test_rate_limiter.py
+python tests/test_token_cleanup.py
+python tests/test_user_soft_delete.py
 ```
 
 Expected success output:
