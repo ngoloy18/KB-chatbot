@@ -47,14 +47,6 @@ class User(TimestampMixin, Base):
         nullable=False,
         default=False,
     )
-    # The token is temporary proof used by /auth/verify-email.
-    email_verification_token: Mapped[str | None] = mapped_column(
-        String(255),
-        unique=True,
-    )
-    email_verification_sent_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True)
-    )
     # Password reset tokens are hashed so a leaked database cannot reset accounts.
     password_reset_token_hash: Mapped[str | None] = mapped_column(
         String(64),
@@ -71,3 +63,7 @@ class User(TimestampMixin, Base):
         back_populates="user"
     )
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user")
+    email_verification_tokens: Mapped[list["EmailVerificationToken"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )

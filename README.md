@@ -34,10 +34,11 @@ The project tables live in the PostgreSQL schema:
 kb
 ```
 
-The database currently uses these 10 tables:
+The database currently uses these 11 tables:
 
 ```text
 kb.users
+kb.email_verification_tokens
 kb.document_categories
 kb.documents
 kb.document_chunks
@@ -75,6 +76,7 @@ JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=15
 REFRESH_TOKEN_EXPIRE_MINUTES=10080
 PASSWORD_RESET_TOKEN_EXPIRE_MINUTES=30
+EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES=1440
 INITIAL_ADMIN_EMAIL=admin@example.com
 INITIAL_ADMIN_PASSWORD=ChangeMe123!
 EMAIL_ENABLED=true
@@ -94,6 +96,9 @@ RATE_LIMIT_ENABLED=true
 RATE_LIMIT_REQUESTS=100
 RATE_LIMIT_WINDOW_SECONDS=60
 RATE_LIMIT_EXCLUDED_PATHS=/docs,/openapi.json,/redoc
+SENSITIVE_RATE_LIMIT_REQUESTS=5
+SENSITIVE_RATE_LIMIT_WINDOW_SECONDS=60
+SENSITIVE_RATE_LIMIT_PATHS=/api/auth/login,/api/auth/register,/api/auth/forgot-password,/api/auth/reset-password,/api/auth/resend-verification,/api/documents/upload
 ```
 
 Use your real PostgreSQL password in `.env`. Do not commit `.env`.
@@ -110,6 +115,10 @@ EMAIL_RETURN_DEV_TOKENS=true
 
 `EMAIL_RETURN_DEV_TOKENS=true` keeps verification and reset tokens visible in
 Swagger while also sending emails. In production, set it to `false`.
+
+`SENSITIVE_RATE_LIMIT_*` settings apply stricter limits to endpoints that are
+easy to abuse, such as login, register, password reset, resend verification, and
+document upload.
 
 ## Install
 
@@ -160,7 +169,7 @@ Expected success output:
 
 ```text
 Database connection OK: connected to 'chatbot_db'.
-Schema OK: found kb schema and all 10 expected tables.
+Schema OK: found kb schema and all 11 expected tables.
 Categories OK: found all 6 document categories.
 ```
 
@@ -212,13 +221,13 @@ app/
   dependencies/   FastAPI dependencies such as current-user/admin checks
   db/             SQLAlchemy engine, session, and Base
   models/
-    auth/         user and refresh-token ORM models
+    auth/         user, verification-token, and refresh-token ORM models
     chat/         chat/session/message/source/AI run ORM models
     common/       shared ORM mixins
     documents/    document/category/chunk/permission ORM models
     database.py   central model exports for Alembic and compatibility
   repositories/
-    auth/         refresh-token persistence
+    auth/         verification-token and refresh-token persistence
     documents/    document persistence
     users/        user persistence
   routes/
@@ -254,6 +263,7 @@ Repositories contain SQLAlchemy queries and database commits.
 - `GET /api/health` checks whether the API process is running.
 - `POST /api/auth/register` creates a normal user.
 - `POST /api/auth/verify-email` verifies a registered user's email token.
+- `POST /api/auth/resend-verification` sends a fresh verification token.
 - `POST /api/auth/login` returns JWT access and refresh tokens.
 - `POST /api/auth/refresh` rotates a refresh token and returns new tokens.
 - `POST /api/auth/logout` revokes one refresh token.
@@ -280,6 +290,7 @@ Repositories contain SQLAlchemy queries and database commits.
 - Run `python scripts/seed_admin.py`.
 - Register a normal user and copy the returned `verification_token`.
 - If `EMAIL_ENABLED=true`, confirm the verification email appears in the recipient inbox.
+- If the email is missing, call `POST /api/auth/resend-verification`.
 - Verify the normal user with `POST /api/auth/verify-email`.
 - Log in with `POST /api/auth/login` and copy the access token and refresh token.
 - Call `GET /api/auth/me` with `Authorization: Bearer <token>`.

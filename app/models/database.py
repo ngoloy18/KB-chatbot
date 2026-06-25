@@ -15,6 +15,7 @@ from app.models.chat.sessions import ChatSession
 from app.models.chat.messages import ChatMessage
 from app.models.chat.message_sources import MessageSource
 from app.models.chat.ai_runs import AIRun
+from app.models.auth.email_verification_tokens import EmailVerificationToken
 from app.models.auth.refresh_tokens import RefreshToken
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
     "DocumentCategoryModel",
     "DocumentChunk",
     "DocumentPermission",
+    "EmailVerificationToken",
     "MessageSource",
     "RefreshToken",
     "SCHEMA_NAME",

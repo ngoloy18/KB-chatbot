@@ -52,6 +52,9 @@ class Settings:
         self.password_reset_token_expire_minutes = int(
             os.getenv("PASSWORD_RESET_TOKEN_EXPIRE_MINUTES", "30")
         )
+        self.email_verification_token_expire_minutes = int(
+            os.getenv("EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES", "1440")
+        )
         self.initial_admin_email = os.getenv("INITIAL_ADMIN_EMAIL", "")
         self.initial_admin_password = os.getenv("INITIAL_ADMIN_PASSWORD", "")
 
@@ -93,6 +96,25 @@ class Settings:
         )
         self.rate_limit_excluded_paths = self._parse_csv_values(
             os.getenv("RATE_LIMIT_EXCLUDED_PATHS", "/docs,/openapi.json,/redoc")
+        )
+        self.sensitive_rate_limit_requests = int(
+            os.getenv("SENSITIVE_RATE_LIMIT_REQUESTS", "5")
+        )
+        self.sensitive_rate_limit_window_seconds = int(
+            os.getenv("SENSITIVE_RATE_LIMIT_WINDOW_SECONDS", "60")
+        )
+        self.sensitive_rate_limit_paths = self._parse_csv_values(
+            os.getenv(
+                "SENSITIVE_RATE_LIMIT_PATHS",
+                (
+                    "/api/auth/login,"
+                    "/api/auth/register,"
+                    "/api/auth/forgot-password,"
+                    "/api/auth/reset-password,"
+                    "/api/auth/resend-verification,"
+                    "/api/documents/upload"
+                ),
+            )
         )
 
     @staticmethod

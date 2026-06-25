@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.database import RefreshToken
@@ -49,6 +49,20 @@ class RefreshTokenRepository:
 
         refresh_token.is_revoked = True
         refresh_token.revoked_at = datetime.now(UTC)
+        await db.commit()
+
+    async def revoke_all_for_user(self, db: AsyncSession, user_id: UUID) -> None:
+        """Revoke every active refresh token for one user."""
+
+        now = datetime.now(UTC)
+        await db.execute(
+            update(RefreshToken)
+            .where(
+                RefreshToken.user_id == user_id,
+                RefreshToken.is_revoked.is_(False),
+            )
+            .values(is_revoked=True, revoked_at=now)
+        )
         await db.commit()
 
 

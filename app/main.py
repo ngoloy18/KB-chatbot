@@ -34,6 +34,13 @@ app.add_middleware(
     max_requests=settings.rate_limit_requests,
     window_seconds=settings.rate_limit_window_seconds,
     excluded_paths=settings.rate_limit_excluded_paths,
+    route_limits={
+        path: (
+            settings.sensitive_rate_limit_requests,
+            settings.sensitive_rate_limit_window_seconds,
+        )
+        for path in settings.sensitive_rate_limit_paths
+    },
 )
 
 

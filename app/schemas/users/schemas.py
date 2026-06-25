@@ -22,7 +22,7 @@ class UserUpdateRequest(BaseModel):
     # All fields are optional so admins can update only one user property.
     email: EmailStr | None = Field(
         default=None,
-        description="Changing email marks the user unverified and creates a new verification token.",
+        description="Changing email marks the user unverified; use resend verification to send a token.",
     )
     full_name: str | None = Field(default=None, max_length=255)
     role: str | None = Field(default=None, pattern=USER_ROLE_PATTERN)

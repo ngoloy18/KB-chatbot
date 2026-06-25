@@ -1,9 +1,14 @@
 import asyncio
+import os
 import sys
 from pathlib import Path
 from uuid import uuid4
 
 from sqlalchemy import delete
+
+# Keep this test local and deterministic even when the developer .env enables SMTP.
+os.environ.setdefault("EMAIL_ENABLED", "false")
+os.environ.setdefault("EMAIL_RETURN_DEV_TOKENS", "true")
 
 # Add the project root to Python's import path when this file is run directly.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -17,6 +22,7 @@ from app.schemas.auth.schemas import (
     LoginRequest,
     RefreshTokenRequest,
     RegisterRequest,
+    ResendVerificationRequest,
     ResetPasswordRequest,
     VerifyEmailRequest,
 )
@@ -54,9 +60,16 @@ async def check_normal_user_auth_flow() -> None:
             else:
                 raise AssertionError("Unverified users should not be able to login.")
 
+            resent_verification = await auth_service.resend_verification(
+                db,
+                ResendVerificationRequest(email=email),
+            )
+            if not resent_verification.verification_token:
+                raise AssertionError("Resend verification did not return a token.")
+
             await auth_service.verify_email(
                 db,
-                VerifyEmailRequest(token=registered_user.verification_token),
+                VerifyEmailRequest(token=resent_verification.verification_token),
             )
 
             token = await auth_service.login(

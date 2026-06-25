@@ -7,6 +7,7 @@ from app.constants.permissions import (
     DOCUMENT_READ_PERMISSIONS,
     DOCUMENT_WRITE_PERMISSIONS,
 )
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.core.config import DocumentCategory
 from app.models.database import Document
 from app.repositories.documents.documents import document_repository
@@ -37,8 +38,8 @@ class DocumentService:
         db: AsyncSession,
         name: str | None = None,
         category: DocumentCategory | None = None,
-        page: int = 1,
-        page_size: int = 10,
+        page: int = DEFAULT_PAGE,
+        page_size: int = DEFAULT_PAGE_SIZE,
         current_user_id: UUID | None = None,
         is_admin: bool = False,
     ) -> DocumentListResponse:

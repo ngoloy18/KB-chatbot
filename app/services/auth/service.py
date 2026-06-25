@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+import logging
 from secrets import token_urlsafe
 from uuid import UUID
 
@@ -19,6 +20,9 @@ from app.core.security import (
     verify_password,
 )
 from app.core.config import settings
+from app.repositories.auth.email_verification_tokens import (
+    email_verification_token_repository,
+)
 from app.repositories.auth.refresh_tokens import refresh_token_repository
 from app.repositories.users.users import user_repository
 from app.schemas.auth.schemas import (
@@ -29,6 +33,8 @@ from app.schemas.auth.schemas import (
     RefreshTokenRequest,
     RegisterRequest,
     RegisterResponse,
+    ResendVerificationRequest,
+    ResendVerificationResponse,
     ResetPasswordRequest,
     TokenResponse,
     UserResponse,
@@ -43,6 +49,9 @@ from app.services.auth.exceptions import (
     InvalidVerificationTokenError,
 )
 from app.services.auth.email import email_service
+
+
+logger = logging.getLogger(__name__)
 
 
 class AuthService:
@@ -60,8 +69,6 @@ class AuthService:
         if existing_user is not None:
             raise DuplicateEmailError("A user with this email already exists.")
 
-        verification_token = token_urlsafe(32)
-
         # Only the hashed password is saved; the plaintext password is never stored.
         user = await user_repository.create_user(
             db=db,
@@ -70,12 +77,20 @@ class AuthService:
             full_name=payload.full_name,
             role=USER_ROLE_USER,
             is_email_verified=False,
-            email_verification_token=verification_token,
-            email_verification_sent_at=datetime.now(UTC),
         )
-        await email_service.send_verification_email(user.email, verification_token)
+        verification_token = await self._create_email_verification_token(db, user.id)
+        email_sent = await self._send_verification_email_safely(
+            user.email,
+            verification_token,
+        )
+        logger.info(
+            "event=auth.register user_id=%s email_sent=%s",
+            user.id,
+            email_sent,
+        )
         return RegisterResponse(
             user=UserResponse.model_validate(user),
+            email_sent=email_sent,
             verification_token=(
                 verification_token
                 if settings.email_return_dev_tokens
@@ -90,15 +105,59 @@ class AuthService:
     ) -> UserResponse:
         """Mark a user email as verified when the token matches."""
 
-        user = await user_repository.get_by_verification_token(db, payload.token)
+        token = await email_verification_token_repository.get_active_by_hash(
+            db,
+            hash_token(payload.token),
+        )
+        if token is None:
+            raise InvalidVerificationTokenError("Invalid email verification token.")
+
+        user = await user_repository.get_by_id(db, token.user_id)
         if user is None:
             raise InvalidVerificationTokenError("Invalid email verification token.")
 
         user.is_email_verified = True
-        user.email_verification_token = None
+        await email_verification_token_repository.mark_used(db, token)
         await db.commit()
         await db.refresh(user)
+        logger.info("event=auth.verify_email user_id=%s", user.id)
         return UserResponse.model_validate(user)
+
+    async def resend_verification(
+        self,
+        db: AsyncSession,
+        payload: ResendVerificationRequest,
+    ) -> ResendVerificationResponse:
+        """Send a new email verification token when an account still needs it."""
+
+        public_message = (
+            "If that account needs verification, a new verification email was sent."
+        )
+        user = await user_repository.get_by_email(db, payload.email)
+        if user is None or not user.is_active or user.is_email_verified:
+            logger.info("event=auth.resend_verification ignored email=%s", payload.email)
+            return ResendVerificationResponse(message=public_message)
+
+        await email_verification_token_repository.revoke_active_for_user(db, user.id)
+        verification_token = await self._create_email_verification_token(db, user.id)
+        email_sent = await self._send_verification_email_safely(
+            user.email,
+            verification_token,
+        )
+        logger.info(
+            "event=auth.resend_verification user_id=%s email_sent=%s",
+            user.id,
+            email_sent,
+        )
+        return ResendVerificationResponse(
+            message=public_message,
+            email_sent=email_sent,
+            verification_token=(
+                verification_token
+                if settings.email_return_dev_tokens
+                else None
+            ),
+        )
 
     async def login(self, db: AsyncSession, payload: LoginRequest) -> TokenResponse:
         """Verify credentials and return JWT access and refresh tokens."""
@@ -107,6 +166,7 @@ class AuthService:
         # Use the same error for missing users and wrong passwords so attackers
         # cannot easily guess which emails are registered.
         if user is None or not verify_password(payload.password, user.hashed_password):
+            logger.info("event=auth.login_failed email=%s", payload.email)
             raise InvalidCredentialsError("Incorrect email or password.")
         if not user.is_active:
             raise InactiveUserError("This user is inactive.")
@@ -118,6 +178,7 @@ class AuthService:
         access_token = create_access_token(user_id=user.id, role=user.role)
         refresh_token = create_refresh_token(user_id=user.id)
         await self._store_refresh_token(db, user.id, refresh_token)
+        logger.info("event=auth.login_success user_id=%s", user.id)
         return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
     async def refresh_token(
@@ -218,9 +279,18 @@ class AuthService:
         user.password_reset_token_hash = hash_token(reset_token)
         user.password_reset_sent_at = datetime.now(UTC)
         await db.commit()
-        await email_service.send_password_reset_email(user.email, reset_token)
+        email_sent = await self._send_password_reset_email_safely(
+            user.email,
+            reset_token,
+        )
+        logger.info(
+            "event=auth.forgot_password user_id=%s email_sent=%s",
+            user.id,
+            email_sent,
+        )
         return ForgotPasswordResponse(
             message=public_message,
+            email_sent=email_sent,
             reset_token=reset_token if settings.email_return_dev_tokens else None,
         )
 
@@ -251,8 +321,57 @@ class AuthService:
         user.password_reset_token_hash = None
         user.password_reset_sent_at = None
         await db.commit()
+        await refresh_token_repository.revoke_all_for_user(db, user.id)
         await db.refresh(user)
+        logger.info("event=auth.reset_password user_id=%s", user.id)
         return UserResponse.model_validate(user)
+
+    async def _create_email_verification_token(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+    ) -> str:
+        """Create and store a hashed email verification token."""
+
+        raw_token = token_urlsafe(32)
+        expires_at = datetime.now(UTC) + timedelta(
+            minutes=settings.email_verification_token_expire_minutes
+        )
+        await email_verification_token_repository.create_token(
+            db=db,
+            user_id=user_id,
+            token_hash=hash_token(raw_token),
+            expires_at=expires_at,
+        )
+        return raw_token
+
+    async def _send_verification_email_safely(
+        self,
+        email: str,
+        token: str,
+    ) -> bool:
+        """Send verification email without failing the already-created account."""
+
+        try:
+            await email_service.send_verification_email(email, token)
+        except Exception:
+            logger.exception("event=email.verification_failed email=%s", email)
+            return False
+        return settings.email_enabled
+
+    async def _send_password_reset_email_safely(
+        self,
+        email: str,
+        token: str,
+    ) -> bool:
+        """Send password reset email without turning reset requests into 500s."""
+
+        try:
+            await email_service.send_password_reset_email(email, token)
+        except Exception:
+            logger.exception("event=email.password_reset_failed email=%s", email)
+            return False
+        return settings.email_enabled
 
 
 auth_service = AuthService()

@@ -113,6 +113,7 @@ class ForgotPasswordResponse(BaseModel):
     """Password reset response with local-development reset token."""
 
     message: str
+    email_sent: bool = False
     # Returned only when EMAIL_RETURN_DEV_TOKENS=true for local Swagger testing.
     reset_token: str | None = None
 
@@ -143,6 +144,21 @@ class VerifyEmailRequest(BaseModel):
     token: str = Field(..., min_length=16, max_length=255)
 
 
+class ResendVerificationRequest(BaseModel):
+    """Request body for sending a new verification email."""
+
+    email: EmailStr
+
+
+class ResendVerificationResponse(BaseModel):
+    """Response for verification email resend requests."""
+
+    message: str
+    email_sent: bool = False
+    # Returned only when EMAIL_RETURN_DEV_TOKENS=true for local Swagger testing.
+    verification_token: str | None = None
+
+
 class UserResponse(BaseModel):
     """Safe user shape returned by auth endpoints."""
 
@@ -162,5 +178,7 @@ class RegisterResponse(BaseModel):
     """Registration response with local-development verification token."""
 
     user: UserResponse
+    message: str = "User registered. Please verify your email before login."
+    email_sent: bool = False
     # Returned only when EMAIL_RETURN_DEV_TOKENS=true for local Swagger testing.
     verification_token: str | None = None

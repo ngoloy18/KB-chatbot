@@ -1,4 +1,3 @@
-from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import func, select, update
@@ -22,16 +21,6 @@ class UserRepository:
         """Return one user by id if it exists."""
 
         query = select(User).where(User.id == user_id)
-        return await db.scalar(query)
-
-    async def get_by_verification_token(
-        self,
-        db: AsyncSession,
-        token: str,
-    ) -> User | None:
-        """Return one user by email verification token if it exists."""
-
-        query = select(User).where(User.email_verification_token == token)
         return await db.scalar(query)
 
     async def get_by_password_reset_token_hash(
@@ -66,8 +55,6 @@ class UserRepository:
         full_name: str | None = None,
         role: str = USER_ROLE_USER,
         is_email_verified: bool = False,
-        email_verification_token: str | None = None,
-        email_verification_sent_at: datetime | None = None,
     ) -> User:
         """Create one user row."""
 
@@ -79,8 +66,6 @@ class UserRepository:
             role=role,
             is_active=True,
             is_email_verified=is_email_verified,
-            email_verification_token=email_verification_token,
-            email_verification_sent_at=email_verification_sent_at,
         )
         db.add(user)
         # commit writes the INSERT to PostgreSQL.

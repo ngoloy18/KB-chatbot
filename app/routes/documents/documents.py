@@ -8,6 +8,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+import logging
 from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID, uuid4
@@ -17,6 +18,7 @@ from app.constants.documents import (
     DEFAULT_UPLOAD_CONTENT_TYPE,
     DEFAULT_UPLOAD_FILE_NAME,
 )
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.core.config import DocumentCategory, settings
 from app.db.session import get_db
 from app.dependencies.auth import get_current_user, require_admin
@@ -37,6 +39,7 @@ from app.services.documents.exceptions import (
 
 # All document endpoints share the same prefix and Swagger tag.
 router = APIRouter(prefix="/documents", tags=["documents"])
+logger = logging.getLogger(__name__)
 
 # Uploaded files are saved locally here, while metadata is saved in PostgreSQL.
 UPLOAD_DIR = Path(settings.upload_dir)
@@ -63,13 +66,19 @@ def save_uploaded_file(file: UploadFile, file_bytes: bytes) -> tuple[str, str, s
 
 
 def cleanup_saved_upload(file_path: str | None) -> None:
-    """Remove a saved upload if database work fails afterward."""
+    """Remove a saved upload when database work fails or a file is replaced."""
 
     if file_path is None:
         return
     saved_path = Path(file_path)
-    if saved_path.exists():
-        saved_path.unlink()
+    upload_root = UPLOAD_DIR.resolve()
+    resolved_path = saved_path.resolve()
+    # Only delete files from the configured upload folder.
+    if resolved_path.is_relative_to(upload_root) and resolved_path.exists():
+        try:
+            resolved_path.unlink()
+        except OSError:
+            logger.exception("event=document.upload_cleanup_failed path=%s", file_path)
 
 
 def validate_admin_upload(file: UploadFile, file_bytes: bytes) -> None:
@@ -141,14 +150,14 @@ async def list_documents(
         description="Filter documents by one of the six supported KB standards.",
     ),
     page: int = Query(
-        default=1,
+        default=DEFAULT_PAGE,
         ge=1,
         description="Page number to return. Starts at 1.",
     ),
     page_size: int = Query(
-        default=10,
+        default=DEFAULT_PAGE_SIZE,
         ge=1,
-        le=100,
+        le=MAX_PAGE_SIZE,
         description="Number of documents per page.",
     ),
     db: AsyncSession = Depends(get_db),
@@ -221,7 +230,13 @@ async def upload_document_as_admin(
         require_markdown=True,
     )
     try:
-        return await document_service.create_document(db, payload)
+        document = await document_service.create_document(db, payload)
+        logger.info(
+            "event=document.upload_created document_id=%s admin_id=%s",
+            document.id,
+            current_admin.id,
+        )
+        return document
     except DocumentCategoryNotFoundError as exc:
         cleanup_saved_upload(payload.file_path)
         raise HTTPException(
@@ -264,25 +279,46 @@ async def update_document(
         file_type=create_payload.file_type,
     )
 
+    new_file_path = payload.file_path
+    old_document = None
     try:
+        old_document = await document_service.get_document(
+            db=db,
+            document_id=document_id,
+            current_user_id=current_user.id,
+            is_admin=current_user.role == USER_ROLE_ADMIN,
+        )
         # The service updates only the existing row matching document_id.
-        return await document_service.update_document(
+        updated_document = await document_service.update_document(
             db=db,
             document_id=document_id,
             payload=payload,
             current_user_id=current_user.id,
             is_admin=current_user.role == USER_ROLE_ADMIN,
         )
+        cleanup_saved_upload(old_document.file_path)
+        logger.info(
+            "event=document.upload_replaced document_id=%s user_id=%s",
+            updated_document.id,
+            current_user.id,
+        )
+        return updated_document
     except DocumentNotFoundError as exc:
+        cleanup_saved_upload(new_file_path)
         # Route layer decides the HTTP status code for not-found service errors.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     except DocumentAccessDeniedError as exc:
+        cleanup_saved_upload(new_file_path)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
     except DocumentCategoryNotFoundError as exc:
+        cleanup_saved_upload(new_file_path)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
         ) from exc
+    except Exception:
+        cleanup_saved_upload(new_file_path)
+        raise
 
 
 @router.delete(
@@ -299,12 +335,24 @@ async def delete_document(
     """Delete a document and return an empty 204 response."""
 
     try:
+        document = await document_service.get_document(
+            db=db,
+            document_id=document_id,
+            current_user_id=current_user.id,
+            is_admin=current_user.role == USER_ROLE_ADMIN,
+        )
         # The service checks existence before deleting so missing IDs return 404.
         await document_service.delete_document(
             db=db,
             document_id=document_id,
             current_user_id=current_user.id,
             is_admin=current_user.role == USER_ROLE_ADMIN,
+        )
+        cleanup_saved_upload(document.file_path)
+        logger.info(
+            "event=document.deleted document_id=%s user_id=%s",
+            document_id,
+            current_user.id,
         )
     except DocumentNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))

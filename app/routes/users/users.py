@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.db.session import get_db
 from app.dependencies.auth import require_admin
 from app.models.database import User
@@ -21,8 +22,8 @@ router = APIRouter(prefix="/users", tags=["users"])
     summary="List users as admin",
 )
 async def list_users(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=10, ge=1, le=100),
+    page: int = Query(default=DEFAULT_PAGE, ge=1),
+    page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ) -> UserListResponse:

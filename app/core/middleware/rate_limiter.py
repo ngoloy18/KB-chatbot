@@ -58,14 +58,24 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         max_requests: int,
         window_seconds: int,
         excluded_paths: set[str],
+        route_limits: dict[str, tuple[int, int]] | None = None,
     ) -> None:
         super().__init__(app)
         self.enabled = enabled
         self.excluded_paths = excluded_paths
-        self.limiter = InMemoryRateLimiter(
+        self.default_limiter = InMemoryRateLimiter(
             max_requests=max_requests,
             window_seconds=window_seconds,
         )
+        # Certain routes like login and upload should have tighter limits than
+        # the general API because attackers tend to target them first.
+        self.route_limiters = {
+            path: InMemoryRateLimiter(
+                max_requests=limit[0],
+                window_seconds=limit[1],
+            )
+            for path, limit in (route_limits or {}).items()
+        }
 
     async def dispatch(
         self,
@@ -76,7 +86,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         client_host = request.client.host if request.client else "unknown"
-        allowed, remaining_requests, reset_seconds = self.limiter.check_limit(client_host)
+        limiter = self.route_limiters.get(request.url.path, self.default_limiter)
+        if limiter is self.default_limiter:
+            limit_key = client_host
+        else:
+            limit_key = f"{client_host}:{request.url.path}"
+        allowed, remaining_requests, reset_seconds = limiter.check_limit(limit_key)
 
         if not allowed:
             return JSONResponse(

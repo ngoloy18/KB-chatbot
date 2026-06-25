@@ -1,10 +1,12 @@
-from datetime import UTC, datetime
-from secrets import token_urlsafe
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password
+from app.repositories.auth.email_verification_tokens import (
+    email_verification_token_repository,
+)
+from app.repositories.auth.refresh_tokens import refresh_token_repository
 from app.repositories.users.users import user_repository
 from app.schemas.users.schemas import (
     UserAdminResponse,
@@ -62,8 +64,7 @@ class UserService:
             user.email = payload.email
             # Changing email means the new address should be verified again.
             user.is_email_verified = False
-            user.email_verification_token = token_urlsafe(32)
-            user.email_verification_sent_at = datetime.now(UTC)
+            await email_verification_token_repository.revoke_active_for_user(db, user.id)
 
         if payload.full_name is not None:
             user.full_name = payload.full_name
@@ -72,12 +73,19 @@ class UserService:
             user.role = payload.role
         if payload.is_active is not None:
             user.is_active = payload.is_active
+            if not payload.is_active:
+                # Disabled users should lose active sessions immediately.
+                await refresh_token_repository.revoke_all_for_user(db, user.id)
         if payload.is_email_verified is not None:
             user.is_email_verified = payload.is_email_verified
             if payload.is_email_verified:
-                user.email_verification_token = None
+                await email_verification_token_repository.revoke_active_for_user(
+                    db,
+                    user.id,
+                )
         if payload.password is not None:
             user.hashed_password = hash_password(payload.password)
+            await refresh_token_repository.revoke_all_for_user(db, user.id)
 
         await db.commit()
         await db.refresh(user)

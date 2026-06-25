@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.constants.documents import DOCUMENT_STATUS_READY
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.constants.permissions import DOCUMENT_READ_PERMISSIONS
 from app.core.config import DocumentCategory
 from app.models.database import Document, DocumentCategoryModel, DocumentPermission
@@ -19,8 +20,8 @@ class DocumentRepository:
         db: AsyncSession,
         name: str | None = None,
         category: DocumentCategory | None = None,
-        page: int = 1,
-        page_size: int = 10,
+        page: int = DEFAULT_PAGE,
+        page_size: int = DEFAULT_PAGE_SIZE,
         user_id: UUID | None = None,
         include_all: bool = False,
     ) -> tuple[list[Document], int]:
