@@ -14,6 +14,8 @@ from app.repositories.documents.documents import document_repository
 from app.repositories.users.users import user_repository
 from app.schemas.documents.schemas import (
     DocumentCreate,
+    DocumentChunkSearchResponse,
+    DocumentChunkSearchResult,
     DocumentListResponse,
     DocumentPermissionResponse,
     DocumentPermissionUpsertRequest,
@@ -27,6 +29,7 @@ from app.services.documents.exceptions import (
     DocumentNotFoundError,
     DocumentPermissionNotFoundError,
 )
+from app.services.documents.chunking import document_chunking_service
 from app.services.users.exceptions import UserNotFoundError
 
 
@@ -61,6 +64,46 @@ class DocumentService:
             total=total,
             page=page,
             page_size=page_size,
+        )
+
+    async def search_document_chunks(
+        self,
+        db: AsyncSession,
+        query: str,
+        category: DocumentCategory | None = None,
+        page: int = DEFAULT_PAGE,
+        page_size: int = DEFAULT_PAGE_SIZE,
+        current_user_id: UUID | None = None,
+        is_admin: bool = False,
+    ) -> DocumentChunkSearchResponse:
+        """Search document chunks visible to the current user."""
+
+        rows, total = await document_repository.search_document_chunks(
+            db=db,
+            query_text=query,
+            category=category,
+            page=page,
+            page_size=page_size,
+            user_id=current_user_id,
+            include_all=is_admin,
+        )
+        return DocumentChunkSearchResponse(
+            items=[
+                DocumentChunkSearchResult(
+                    document_id=document.id,
+                    document_name=document.title,
+                    category=DocumentCategory(document.category.name),
+                    chunk_id=chunk.id,
+                    chunk_index=chunk.chunk_index,
+                    content=chunk.content,
+                    token_count=chunk.token_count,
+                )
+                for chunk, document in rows
+            ],
+            total=total,
+            page=page,
+            page_size=page_size,
+            query=query,
         )
 
     async def get_document(
@@ -105,6 +148,7 @@ class DocumentService:
             payload=payload,
             category=category,
         )
+        await self._replace_document_chunks(db, document, payload.content)
         return document_to_response(document)
 
     async def update_document(
@@ -149,6 +193,8 @@ class DocumentService:
             payload=payload,
             category=category,
         )
+        if payload.content is not None:
+            await self._replace_document_chunks(db, document, payload.content)
         return document_to_response(document)
 
     async def delete_document(
@@ -235,3 +281,21 @@ class DocumentService:
         if document is None:
             raise DocumentNotFoundError(f"Document {document_id} was not found.")
         return document
+
+    async def _replace_document_chunks(
+        self,
+        db: AsyncSession,
+        document: Document,
+        content: str,
+    ) -> None:
+        """Split document text and replace rows in kb.document_chunks."""
+
+        chunks = document_chunking_service.split_text(content)
+        await document_repository.replace_document_chunks(
+            db=db,
+            document=document,
+            chunks=[
+                (chunk.chunk_index, chunk.content, chunk.token_count)
+                for chunk in chunks
+            ],
+        )

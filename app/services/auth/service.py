@@ -23,6 +23,7 @@ from app.core.config import settings
 from app.repositories.auth.email_verification_tokens import (
     email_verification_token_repository,
 )
+from app.repositories.auth.password_reset_tokens import password_reset_token_repository
 from app.repositories.auth.refresh_tokens import refresh_token_repository
 from app.repositories.users.users import user_repository
 from app.schemas.auth.schemas import (
@@ -275,10 +276,8 @@ class AuthService:
         if user is None or not user.is_active:
             return ForgotPasswordResponse(message=public_message)
 
-        reset_token = token_urlsafe(32)
-        user.password_reset_token_hash = hash_token(reset_token)
-        user.password_reset_sent_at = datetime.now(UTC)
-        await db.commit()
+        await password_reset_token_repository.revoke_active_for_user(db, user.id)
+        reset_token = await self._create_password_reset_token(db, user.id)
         email_sent = await self._send_password_reset_email_safely(
             user.email,
             reset_token,
@@ -301,25 +300,22 @@ class AuthService:
     ) -> UserResponse:
         """Replace a user's password when a valid reset token is provided."""
 
-        user = await user_repository.get_by_password_reset_token_hash(
+        token = await password_reset_token_repository.get_active_by_hash(
             db,
             hash_token(payload.token),
         )
-        if user is None or user.password_reset_sent_at is None:
+        if token is None:
             raise InvalidPasswordResetTokenError("Invalid or expired password reset token.")
 
-        expires_at = user.password_reset_sent_at + timedelta(
-            minutes=settings.password_reset_token_expire_minutes
-        )
-        if datetime.now(UTC) > expires_at:
+        user = await user_repository.get_by_id(db, token.user_id)
+        if user is None:
             raise InvalidPasswordResetTokenError("Invalid or expired password reset token.")
         if not user.is_active:
             raise InactiveUserError("This user is inactive.")
 
         # Saving a new hash replaces the old password without storing plaintext.
         user.hashed_password = hash_password(payload.new_password)
-        user.password_reset_token_hash = None
-        user.password_reset_sent_at = None
+        await password_reset_token_repository.mark_used(db, token)
         await db.commit()
         await refresh_token_repository.revoke_all_for_user(db, user.id)
         await db.refresh(user)
@@ -338,6 +334,25 @@ class AuthService:
             minutes=settings.email_verification_token_expire_minutes
         )
         await email_verification_token_repository.create_token(
+            db=db,
+            user_id=user_id,
+            token_hash=hash_token(raw_token),
+            expires_at=expires_at,
+        )
+        return raw_token
+
+    async def _create_password_reset_token(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+    ) -> str:
+        """Create and store a hashed password reset token."""
+
+        raw_token = token_urlsafe(32)
+        expires_at = datetime.now(UTC) + timedelta(
+            minutes=settings.password_reset_token_expire_minutes
+        )
+        await password_reset_token_repository.create_token(
             db=db,
             user_id=user_id,
             token_hash=hash_token(raw_token),

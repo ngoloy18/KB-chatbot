@@ -25,6 +25,7 @@ from app.dependencies.auth import get_current_user, require_admin
 from app.models.database import User
 from app.schemas.documents.schemas import (
     DocumentCreate,
+    DocumentChunkSearchResponse,
     DocumentListResponse,
     DocumentResponse,
     DocumentUploadRequest,
@@ -173,6 +174,50 @@ async def list_documents(
     return await document_service.list_documents(
         db=db,
         name=name,
+        category=category,
+        page=page,
+        page_size=page_size,
+        current_user_id=current_user.id,
+        is_admin=current_user.role == USER_ROLE_ADMIN,
+    )
+
+
+@router.get(
+    "/search",
+    response_model=DocumentChunkSearchResponse,
+    summary="Search document chunks",
+    description="Search text chunks from documents the current user can access.",
+)
+async def search_document_chunks(
+    q: str = Query(
+        ...,
+        min_length=2,
+        max_length=200,
+        description="Text to search inside document chunks.",
+    ),
+    category: DocumentCategory | None = Query(
+        default=None,
+        description="Optional document category filter.",
+    ),
+    page: int = Query(
+        default=DEFAULT_PAGE,
+        ge=1,
+        description="Page number to return. Starts at 1.",
+    ),
+    page_size: int = Query(
+        default=DEFAULT_PAGE_SIZE,
+        ge=1,
+        le=MAX_PAGE_SIZE,
+        description="Number of chunk matches per page.",
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DocumentChunkSearchResponse:
+    """Search document chunks after auth and permission filtering."""
+
+    return await document_service.search_document_chunks(
+        db=db,
+        query=q,
         category=category,
         page=page,
         page_size=page_size,

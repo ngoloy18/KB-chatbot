@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -8,7 +8,12 @@ from app.constants.documents import DOCUMENT_STATUS_READY
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.constants.permissions import DOCUMENT_READ_PERMISSIONS
 from app.core.config import DocumentCategory
-from app.models.database import Document, DocumentCategoryModel, DocumentPermission
+from app.models.database import (
+    Document,
+    DocumentCategoryModel,
+    DocumentChunk,
+    DocumentPermission,
+)
 from app.schemas.documents.schemas import DocumentCreate, DocumentUpdate
 
 
@@ -81,6 +86,56 @@ class DocumentRepository:
             .where(Document.id == document_id)
         )
         return await db.scalar(query)
+
+    async def search_document_chunks(
+        self,
+        db: AsyncSession,
+        query_text: str,
+        category: DocumentCategory | None = None,
+        page: int = DEFAULT_PAGE,
+        page_size: int = DEFAULT_PAGE_SIZE,
+        user_id: UUID | None = None,
+        include_all: bool = False,
+    ) -> tuple[list[tuple[DocumentChunk, Document]], int]:
+        """Search document chunk content and return matching chunks with documents."""
+
+        filters = [DocumentChunk.content.ilike(f"%{query_text}%")]
+        if category is not None:
+            filters.append(DocumentCategoryModel.name == category.value)
+        if user_id is not None and not include_all:
+            # Normal users only search chunks from documents they can read.
+            filters.append(
+                Document.id.in_(
+                    select(DocumentPermission.document_id).where(
+                        and_(
+                            DocumentPermission.user_id == user_id,
+                            DocumentPermission.permission.in_(DOCUMENT_READ_PERMISSIONS),
+                        )
+                    )
+                )
+            )
+
+        total_query = (
+            select(func.count())
+            .select_from(DocumentChunk)
+            .join(Document)
+            .join(DocumentCategoryModel)
+            .where(*filters)
+        )
+        total = await db.scalar(total_query)
+
+        search_query = (
+            select(DocumentChunk, Document)
+            .join(Document)
+            .join(DocumentCategoryModel)
+            .options(selectinload(Document.category))
+            .where(*filters)
+            .order_by(Document.updated_at.desc(), DocumentChunk.chunk_index.asc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        rows = await db.execute(search_query)
+        return list(rows.all()), total or 0
 
     async def user_has_document_permission(
         self,
@@ -164,6 +219,30 @@ class DocumentRepository:
         # Commit writes the UPDATE to PostgreSQL.
         await db.commit()
         return document
+
+    async def replace_document_chunks(
+        self,
+        db: AsyncSession,
+        document: Document,
+        chunks: list[tuple[int, str, int]],
+    ) -> None:
+        """Replace every stored chunk for one document."""
+
+        await db.execute(
+            delete(DocumentChunk).where(DocumentChunk.document_id == document.id)
+        )
+        db.add_all(
+            [
+                DocumentChunk(
+                    document_id=document.id,
+                    chunk_index=chunk_index,
+                    content=content,
+                    token_count=token_count,
+                )
+                for chunk_index, content, token_count in chunks
+            ]
+        )
+        await db.commit()
 
     async def delete_document(self, db: AsyncSession, document: Document) -> None:
         """Delete one loaded document row from PostgreSQL."""

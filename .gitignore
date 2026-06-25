@@ -4,3 +4,4 @@ __pycache__/
 .env
 uploads/
 .agents/
+PROJECT_PROGRESS_CHECKLIST.md

@@ -28,6 +28,7 @@ from app.schemas.auth.schemas import (
 )
 from app.services.auth.exceptions import EmailNotVerifiedError
 from app.services.auth.exceptions import InvalidCredentialsError
+from app.services.auth.exceptions import InvalidPasswordResetTokenError
 from app.services.auth.service import auth_service
 
 
@@ -121,6 +122,18 @@ async def check_normal_user_auth_flow() -> None:
                     new_password=new_password,
                 ),
             )
+            try:
+                await auth_service.reset_password(
+                    db,
+                    ResetPasswordRequest(
+                        token=reset_response.reset_token,
+                        new_password="AnotherPassword123!",
+                    ),
+                )
+            except InvalidPasswordResetTokenError:
+                pass
+            else:
+                raise AssertionError("Password reset token should be one-time use.")
 
             try:
                 await auth_service.login(

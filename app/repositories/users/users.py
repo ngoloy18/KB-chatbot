@@ -23,16 +23,6 @@ class UserRepository:
         query = select(User).where(User.id == user_id)
         return await db.scalar(query)
 
-    async def get_by_password_reset_token_hash(
-        self,
-        db: AsyncSession,
-        token_hash: str,
-    ) -> User | None:
-        """Return one user by password reset token hash if it exists."""
-
-        query = select(User).where(User.password_reset_token_hash == token_hash)
-        return await db.scalar(query)
-
     async def list_users(
         self,
         db: AsyncSession,

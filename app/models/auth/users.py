@@ -1,7 +1,6 @@
-from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, String, Text
+from sqlalchemy import Boolean, CheckConstraint, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -47,23 +46,25 @@ class User(TimestampMixin, Base):
         nullable=False,
         default=False,
     )
-    # Password reset tokens are hashed so a leaked database cannot reset accounts.
-    password_reset_token_hash: Mapped[str | None] = mapped_column(
-        String(64),
-        unique=True,
-    )
-    password_reset_sent_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True)
-    )
-
     # Relationships let SQLAlchemy navigate from one user to related records.
     documents: Mapped[list["Document"]] = relationship(back_populates="creator")
-    chat_sessions: Mapped[list["ChatSession"]] = relationship(back_populates="user")
-    document_permissions: Mapped[list["DocumentPermission"]] = relationship(
-        back_populates="user"
+    chat_sessions: Mapped[list["ChatSession"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
-    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user")
+    document_permissions: Mapped[list["DocumentPermission"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
     email_verification_tokens: Mapped[list["EmailVerificationToken"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    password_reset_tokens: Mapped[list["PasswordResetToken"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
     )

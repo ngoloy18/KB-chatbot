@@ -34,11 +34,12 @@ The project tables live in the PostgreSQL schema:
 kb
 ```
 
-The database currently uses these 11 tables:
+The database currently uses these 12 tables:
 
 ```text
 kb.users
 kb.email_verification_tokens
+kb.password_reset_tokens
 kb.document_categories
 kb.documents
 kb.document_chunks
@@ -127,10 +128,10 @@ token rows can be deleted after 7 days by the cleanup script.
 ## Install
 
 ```powershell
-python -m pip install -r requirements.txt
+py -m pip install -r requirements.txt
 ```
 
-If your machine uses the `py` launcher on Windows:
+If you need to force Python 3.11 on Windows:
 
 ```powershell
 py -3.11 -m pip install -r requirements.txt
@@ -161,28 +162,37 @@ already exist, or PostgreSQL will complain that the tables already exist.
 Run:
 
 ```powershell
-python tests/test_database_connection.py
-python tests/test_model_mappers.py
-python tests/test_auth_security.py
-python tests/test_auth_flow.py
-python tests/test_auth_password_validation.py
-python tests/test_rate_limiter.py
-python tests/test_token_cleanup.py
-python tests/test_user_soft_delete.py
+py tests/test_database_connection.py
+py tests/test_model_mappers.py
+py tests/test_auth_security.py
+py tests/test_auth_flow.py
+py tests/test_auth_password_validation.py
+py tests/test_rate_limiter.py
+py tests/test_document_chunking.py
+py tests/test_document_search.py
+py tests/test_token_cleanup.py
+py tests/test_user_soft_delete.py
+```
+
+With the API server running on `http://127.0.0.1:8000`, run the live endpoint
+smoke test:
+
+```powershell
+py tests/test_api_smoke.py
 ```
 
 Expected success output:
 
 ```text
 Database connection OK: connected to 'chatbot_db'.
-Schema OK: found kb schema and all 11 expected tables.
+Schema OK: found kb schema and all 12 expected tables.
 Categories OK: found all 6 document categories.
 ```
 
 ## Run Locally
 
 ```powershell
-python -m uvicorn app.main:app --reload
+py -m uvicorn app.main:app --reload
 ```
 
 If the database connection works, the terminal prints:
@@ -202,7 +212,7 @@ http://127.0.0.1:8000/docs
 Public registration always creates normal users. Create the first admin with:
 
 ```powershell
-python scripts/seed_admin.py
+py scripts/seed_admin.py
 ```
 
 The script reads `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` from `.env`.
@@ -215,7 +225,7 @@ Delete used or expired verification tokens older than the configured retention
 window with:
 
 ```powershell
-python scripts/cleanup_tokens.py
+py scripts/cleanup_tokens.py
 ```
 
 By default, `EMAIL_VERIFICATION_TOKEN_RETENTION_DAYS=7`.
@@ -306,7 +316,7 @@ Repositories contain SQLAlchemy queries and database commits.
 
 - Start PostgreSQL.
 - Start the API and confirm the terminal prints `database connect is working`.
-- Run `python scripts/seed_admin.py`.
+- Run `py scripts/seed_admin.py`.
 - Register a normal user and copy the returned `verification_token`.
 - If `EMAIL_ENABLED=true`, confirm the verification email appears in the recipient inbox.
 - If the email is missing, call `POST /api/auth/resend-verification`.

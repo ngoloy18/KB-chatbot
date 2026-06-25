@@ -82,6 +82,7 @@ class DocumentResponse(BaseModel):
     category: DocumentCategory
     # File metadata helps prove file_name/file_path/file_type were saved.
     file_name: str | None = None
+    file_path: str | None = None
     file_type: str | None = None
     content: str
     created_at: datetime
@@ -98,6 +99,28 @@ class DocumentListResponse(BaseModel):
     page_size: int
 
 
+class DocumentChunkSearchResult(BaseModel):
+    """One matching document chunk returned by search."""
+
+    document_id: UUID
+    document_name: str
+    category: DocumentCategory
+    chunk_id: UUID
+    chunk_index: int
+    content: str
+    token_count: int | None = None
+
+
+class DocumentChunkSearchResponse(BaseModel):
+    """Paginated response for document chunk search."""
+
+    items: list[DocumentChunkSearchResult]
+    total: int
+    page: int
+    page_size: int
+    query: str
+
+
 def document_to_response(document: Document) -> DocumentResponse:
     """Convert a SQLAlchemy Document model into the public API schema."""
 
@@ -106,6 +129,7 @@ def document_to_response(document: Document) -> DocumentResponse:
         name=document.title,
         category=DocumentCategory(document.category.name),
         file_name=document.file_name,
+        file_path=document.file_path,
         file_type=document.file_type,
         content=document.content,
         created_at=document.created_at,

@@ -6,6 +6,7 @@ from app.core.security import hash_password
 from app.repositories.auth.email_verification_tokens import (
     email_verification_token_repository,
 )
+from app.repositories.auth.password_reset_tokens import password_reset_token_repository
 from app.repositories.auth.refresh_tokens import refresh_token_repository
 from app.repositories.users.users import user_repository
 from app.schemas.users.schemas import (
@@ -124,10 +125,9 @@ class UserService:
 
         # Soft delete means the account remains in the database but cannot login.
         user.is_active = False
-        user.password_reset_token_hash = None
-        user.password_reset_sent_at = None
         await refresh_token_repository.revoke_all_for_user(db, user.id)
         await email_verification_token_repository.revoke_active_for_user(db, user.id)
+        await password_reset_token_repository.revoke_active_for_user(db, user.id)
         await db.commit()
         await db.refresh(user)
         return UserAdminResponse.model_validate(user)
