@@ -77,6 +77,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=15
 REFRESH_TOKEN_EXPIRE_MINUTES=10080
 PASSWORD_RESET_TOKEN_EXPIRE_MINUTES=30
 EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES=1440
+EMAIL_VERIFICATION_TOKEN_RETENTION_DAYS=7
 INITIAL_ADMIN_EMAIL=admin@example.com
 INITIAL_ADMIN_PASSWORD=ChangeMe123!
 EMAIL_ENABLED=true
@@ -119,6 +120,9 @@ Swagger while also sending emails. In production, set it to `false`.
 `SENSITIVE_RATE_LIMIT_*` settings apply stricter limits to endpoints that are
 easy to abuse, such as login, register, password reset, resend verification, and
 document upload.
+
+`EMAIL_VERIFICATION_TOKEN_RETENTION_DAYS=7` means used or expired verification
+token rows can be deleted after 7 days by the cleanup script.
 
 ## Install
 
@@ -202,6 +206,18 @@ python scripts/seed_admin.py
 The script reads `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` from `.env`.
 Running it twice does not create duplicate admins.
 
+## Cleanup Old Tokens
+
+Email verification tokens are stored for short-term debugging/security history.
+Delete used or expired verification tokens older than the configured retention
+window with:
+
+```powershell
+python scripts/cleanup_tokens.py
+```
+
+By default, `EMAIL_VERIFICATION_TOKEN_RETENTION_DAYS=7`.
+
 ## Project Structure
 
 ```text
@@ -273,6 +289,7 @@ Repositories contain SQLAlchemy queries and database commits.
 - `GET /api/users` lists users as admin.
 - `GET /api/users/{user_id}` returns one user as admin.
 - `PATCH /api/users/{user_id}` updates user information as admin.
+- `PATCH /api/users/{user_id}/soft-delete` deactivates one user as admin while keeping the row.
 - `DELETE /api/users/{user_id}` deletes one user as admin.
 - `GET /api/documents` lists paginated documents and supports optional `name` and `category` filtering.
 - `GET /api/documents/{document_id}` returns one document by UUID or `404`.
@@ -301,6 +318,7 @@ Repositories contain SQLAlchemy queries and database commits.
 - Use `POST /api/auth/reset-password` and confirm login works with the new password.
 - Log in as admin and confirm `GET /api/users` returns the user list.
 - Confirm admin can update a user with `PATCH /api/users/{user_id}`.
+- Confirm admin can soft-delete a user with `PATCH /api/users/{user_id}/soft-delete`.
 - Confirm admin can delete a different user with `DELETE /api/users/{user_id}`.
 - As admin, grant a normal user document access with `PUT /api/documents/{document_id}/permissions`.
 - Log in as that normal user and confirm `GET /api/documents` only shows allowed documents.

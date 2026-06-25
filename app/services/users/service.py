@@ -107,5 +107,30 @@ class UserService:
             raise UserNotFoundError("User not found.")
         await user_repository.delete_user(db, user)
 
+    async def soft_delete_user(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        current_admin_id: UUID,
+    ) -> UserAdminResponse:
+        """Deactivate a user while keeping the row for history and auditing."""
+
+        if user_id == current_admin_id:
+            raise CannotDeleteSelfError("Admins cannot soft-delete their own account.")
+
+        user = await user_repository.get_by_id(db, user_id)
+        if user is None:
+            raise UserNotFoundError("User not found.")
+
+        # Soft delete means the account remains in the database but cannot login.
+        user.is_active = False
+        user.password_reset_token_hash = None
+        user.password_reset_sent_at = None
+        await refresh_token_repository.revoke_all_for_user(db, user.id)
+        await email_verification_token_repository.revoke_active_for_user(db, user.id)
+        await db.commit()
+        await db.refresh(user)
+        return UserAdminResponse.model_validate(user)
+
 
 user_service = UserService()

@@ -71,6 +71,26 @@ async def update_user(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
 
+@router.patch(
+    "/{user_id}/soft-delete",
+    response_model=UserAdminResponse,
+    summary="Soft-delete one user as admin",
+)
+async def soft_delete_user(
+    user_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+) -> UserAdminResponse:
+    """Deactivate a user without removing the database row."""
+
+    try:
+        return await user_service.soft_delete_user(db, user_id, current_admin.id)
+    except UserNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except CannotDeleteSelfError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
 @router.delete(
     "/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,

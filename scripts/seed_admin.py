@@ -10,6 +10,9 @@ from app.core.config import settings
 from app.core.security import hash_password
 from app.db.session import AsyncSessionLocal
 from app.constants.auth import USER_ROLE_ADMIN
+from app.repositories.auth.email_verification_tokens import (
+    email_verification_token_repository,
+)
 from app.repositories.users.users import user_repository
 from app.schemas.auth.schemas import validate_strong_password
 
@@ -34,14 +37,20 @@ async def seed_admin() -> None:
             if existing_user.role == USER_ROLE_ADMIN:
                 if not existing_user.is_email_verified:
                     existing_user.is_email_verified = True
-                    existing_user.email_verification_token = None
+                    await email_verification_token_repository.revoke_active_for_user(
+                        db,
+                        existing_user.id,
+                    )
                     await db.commit()
                 print("Admin already exists; no changes made.")
                 return
             # If the email already belongs to a normal user, promote it once.
             existing_user.role = USER_ROLE_ADMIN
             existing_user.is_email_verified = True
-            existing_user.email_verification_token = None
+            await email_verification_token_repository.revoke_active_for_user(
+                db,
+                existing_user.id,
+            )
             await db.commit()
             print("Existing user promoted to admin.")
             return

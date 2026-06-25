@@ -55,6 +55,9 @@ class Settings:
         self.email_verification_token_expire_minutes = int(
             os.getenv("EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES", "1440")
         )
+        self.email_verification_token_retention_days = int(
+            os.getenv("EMAIL_VERIFICATION_TOKEN_RETENTION_DAYS", "7")
+        )
         self.initial_admin_email = os.getenv("INITIAL_ADMIN_EMAIL", "")
         self.initial_admin_password = os.getenv("INITIAL_ADMIN_PASSWORD", "")
 
