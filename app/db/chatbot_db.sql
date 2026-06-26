@@ -234,6 +234,11 @@ CREATE TABLE IF NOT EXISTS kb.document_chunks
     content text COLLATE pg_catalog."default" NOT NULL,
     token_count integer,
     embedding_id text COLLATE pg_catalog."default",
+    embedding text COLLATE pg_catalog."default",
+    embedding_provider character varying(50) COLLATE pg_catalog."default",
+    embedding_model character varying(100) COLLATE pg_catalog."default",
+    embedding_dimensions integer,
+    embedded_at timestamp with time zone,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
     CONSTRAINT document_chunks_pkey PRIMARY KEY (id),
@@ -255,6 +260,14 @@ ALTER TABLE IF EXISTS kb.document_chunks
 CREATE INDEX IF NOT EXISTS idx_document_chunks_document_id
     ON kb.document_chunks USING btree
     (document_id ASC NULLS LAST)
+    TABLESPACE pg_default;
+-- Index: idx_document_chunks_embedding_model
+
+-- DROP INDEX IF EXISTS kb.idx_document_chunks_embedding_model;
+
+CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding_model
+    ON kb.document_chunks USING btree
+    (embedding_provider ASC NULLS LAST, embedding_model ASC NULLS LAST)
     TABLESPACE pg_default;
 
 -- Table: kb.document_categories

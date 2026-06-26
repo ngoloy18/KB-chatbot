@@ -40,6 +40,16 @@ class Settings:
         self.gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip()
         self.gemini_model = os.getenv("GEMINI_MODEL", "").strip()
         self.chat_history_limit = int(os.getenv("CHAT_HISTORY_LIMIT", "12"))
+        self.embeddings_enabled = (
+            os.getenv("EMBEDDINGS_ENABLED", "false").lower() == "true"
+        )
+        self.embedding_provider = (
+            os.getenv("EMBEDDING_PROVIDER", self.ai_provider).strip().lower()
+        )
+        self.gemini_embedding_model = os.getenv("GEMINI_EMBEDDING_MODEL", "").strip()
+        self.rag_top_k = int(os.getenv("RAG_TOP_K", "5"))
+        self.rag_max_context_tokens = int(os.getenv("RAG_MAX_CONTEXT_TOKENS", "1800"))
+        self.rag_min_similarity = float(os.getenv("RAG_MIN_SIMILARITY", "0"))
 
         # Database settings keep local, Docker, and production values out of code.
         self.database_url = os.getenv("DATABASE_URL", "")

@@ -10,9 +10,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import app.services.chat.service as chat_service_module
+import app.services.chat.retrieval as retrieval_module
+import app.services.documents.service as document_service_module
 from app.constants.ai import AI_RUN_STATUS_FAILED
 from app.constants.permissions import DOCUMENT_PERMISSION_READ
-from app.core.config import DocumentCategory
+from app.core.config import DocumentCategory, settings
 from app.core.security import hash_password
 from app.db.session import AsyncSessionLocal
 from app.models.database import AIRun, Document, User
@@ -43,6 +45,26 @@ class StubAIProvider:
         if self.should_fail:
             raise AIProviderError("stub provider failed")
         return self.answer
+
+
+class StubEmbeddingProvider:
+    """Deterministic embedding provider for local semantic retrieval tests."""
+
+    provider_name = "stub"
+    model_name = "stub-embedding-model"
+
+    async def embed_query(self, query: str) -> list[float]:
+        return self._vector_for_text(query)
+
+    async def embed_documents(self, documents) -> list[list[float]]:
+        return [self._vector_for_text(document.content) for document in documents]
+
+    @staticmethod
+    def _vector_for_text(text: str) -> list[float]:
+        lowered_text = text.lower()
+        if "denied" in lowered_text:
+            return [0.0, 1.0, 0.0]
+        return [1.0, 0.0, 0.0]
 
 
 async def create_test_user(db, email: str) -> User:
@@ -111,9 +133,25 @@ async def check_chat_flow() -> None:
         f"{doc_prefix}-failure",
     ]
     original_factory = chat_service_module.create_ai_provider
+    original_document_embedding_factory = document_service_module.create_embedding_provider
+    original_retrieval_embedding_factory = retrieval_module.create_embedding_provider
+    original_embeddings_enabled = settings.embeddings_enabled
+    original_rag_min_similarity = settings.rag_min_similarity
+    original_rag_top_k = settings.rag_top_k
+    original_rag_max_context_tokens = settings.rag_max_context_tokens
 
     async with AsyncSessionLocal() as db:
         try:
+            embedding_provider = StubEmbeddingProvider()
+            settings.embeddings_enabled = True
+            settings.rag_min_similarity = 0.8
+            settings.rag_top_k = 5
+            settings.rag_max_context_tokens = 1800
+            document_service_module.create_embedding_provider = (
+                lambda: embedding_provider
+            )
+            retrieval_module.create_embedding_provider = lambda: embedding_provider
+
             user = await create_test_user(db, user_email)
             no_docs_user = await create_test_user(db, no_docs_email)
             failure_user = await create_test_user(db, failure_email)
@@ -215,6 +253,16 @@ async def check_chat_flow() -> None:
                 raise AssertionError("Provider failures should be recorded in ai_runs.")
         finally:
             chat_service_module.create_ai_provider = original_factory
+            document_service_module.create_embedding_provider = (
+                original_document_embedding_factory
+            )
+            retrieval_module.create_embedding_provider = (
+                original_retrieval_embedding_factory
+            )
+            settings.embeddings_enabled = original_embeddings_enabled
+            settings.rag_min_similarity = original_rag_min_similarity
+            settings.rag_top_k = original_rag_top_k
+            settings.rag_max_context_tokens = original_rag_max_context_tokens
             invalidate_context_cache()
             await db.execute(delete(Document).where(Document.title.in_(document_names)))
             await db.execute(delete(User).where(User.email.in_(user_emails)))

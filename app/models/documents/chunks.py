@@ -1,6 +1,7 @@
+from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import ForeignKey, Integer, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -40,6 +41,11 @@ class DocumentChunk(TimestampMixin, Base):
     token_count: Mapped[int | None] = mapped_column(Integer)
     # embedding_id can point to a vector database record later.
     embedding_id: Mapped[str | None] = mapped_column(Text)
+    embedding: Mapped[str | None] = mapped_column(Text)
+    embedding_provider: Mapped[str | None] = mapped_column(String(50))
+    embedding_model: Mapped[str | None] = mapped_column(String(100))
+    embedding_dimensions: Mapped[int | None] = mapped_column(Integer)
+    embedded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     document: Mapped["Document"] = relationship(back_populates="chunks")
     message_sources: Mapped[list["MessageSource"]] = relationship(back_populates="chunk")

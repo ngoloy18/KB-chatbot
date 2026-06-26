@@ -33,6 +33,7 @@ from app.schemas.documents.schemas import (
     DocumentVersionListResponse,
 )
 from app.services import document_service
+from app.services.ai import AIProviderConfigurationError, AIProviderError
 from app.services.ask import invalidate_context_cache
 from app.services.documents.exceptions import (
     DocumentAccessDeniedError,
@@ -321,6 +322,18 @@ async def upload_document_as_admin(
     except DocumentDuplicateError as exc:
         cleanup_saved_upload(payload.file_path)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except AIProviderConfigurationError as exc:
+        cleanup_saved_upload(payload.file_path)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except AIProviderError as exc:
+        cleanup_saved_upload(payload.file_path)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
     except Exception:
         cleanup_saved_upload(payload.file_path)
         raise
@@ -399,6 +412,18 @@ async def update_document(
     except DocumentDuplicateError as exc:
         cleanup_saved_upload(new_file_path)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except AIProviderConfigurationError as exc:
+        cleanup_saved_upload(new_file_path)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except AIProviderError as exc:
+        cleanup_saved_upload(new_file_path)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
     except Exception:
         cleanup_saved_upload(new_file_path)
         raise

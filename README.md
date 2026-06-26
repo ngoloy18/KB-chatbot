@@ -76,6 +76,12 @@ AI_PROVIDER=gemini
 GEMINI_API_KEY=your_gemini_api_key
 GEMINI_MODEL=your_flash_model_from_ai_studio
 CHAT_HISTORY_LIMIT=12
+EMBEDDINGS_ENABLED=false
+EMBEDDING_PROVIDER=gemini
+GEMINI_EMBEDDING_MODEL=your_embedding_model_from_ai_studio
+RAG_TOP_K=5
+RAG_MAX_CONTEXT_TOKENS=1800
+RAG_MIN_SIMILARITY=0
 DATABASE_URL=postgresql+asyncpg://postgres:your_password@localhost:5123/chatbot_db
 DATABASE_ECHO=false
 DATABASE_SCHEMA=kb
@@ -136,6 +142,25 @@ the app.
 
 `CHAT_HISTORY_LIMIT` controls how many previous messages are sent with each
 multi-turn chat request.
+
+`EMBEDDINGS_ENABLED=true` makes document upload/update generate chunk
+embeddings and makes `/api/chat` retrieve top matching chunks before calling the
+chat model. `GEMINI_EMBEDDING_MODEL` should be set from AI Studio; the app does
+not hard-code an embedding model. `RAG_TOP_K`, `RAG_MAX_CONTEXT_TOKENS`, and
+`RAG_MIN_SIMILARITY` control retrieval size and filtering.
+
+The `0008` migration stores embeddings and tries to enable PostgreSQL `vector`
+support when the server has pgvector installed. If your local PostgreSQL does
+not include pgvector, semantic retrieval still works with exact cosine scoring
+over stored embeddings, but pgvector indexing/acceleration is not available
+until the server extension is installed.
+
+Existing chunks do not receive embeddings just because the migration runs. After
+configuring `GEMINI_EMBEDDING_MODEL`, backfill current chunks manually:
+
+```powershell
+py scripts/backfill_embeddings.py --limit 20
+```
 
 `EMAIL_VERIFICATION_TOKEN_RETENTION_DAYS=7` and
 `PASSWORD_RESET_TOKEN_RETENTION_DAYS=7` mean used auth token rows can be kept

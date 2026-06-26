@@ -19,8 +19,8 @@ from app.schemas.chat.schemas import (
 from app.services.ai import AIProviderError
 from app.services.ai.factory import create_ai_provider
 from app.services.ask.service import NOT_AVAILABLE_ANSWER
-from app.services.ask.context import build_context
 from app.services.chat.exceptions import ChatSessionNotFoundError
+from app.services.chat.retrieval import retrieve_chat_context
 
 
 class ChatService:
@@ -57,11 +57,24 @@ class ChatService:
             question.strip(),
         )
 
-        document_context = await build_context(
-            db,
-            user_id=user_id,
-            include_all=is_admin,
-        )
+        try:
+            document_context = await retrieve_chat_context(
+                db=db,
+                question=question,
+                user_id=user_id,
+                include_all=is_admin,
+            )
+        except AIProviderError as exc:
+            await chat_repository.create_ai_run(
+                db=db,
+                session_id=session.id,
+                model_name=provider.model_name,
+                user_message_id=user_message.id,
+                assistant_message_id=None,
+                status=AI_RUN_STATUS_FAILED,
+                error_message=str(exc),
+            )
+            raise
         if not document_context.content:
             answer = NOT_AVAILABLE_ANSWER
             assistant_message = await chat_repository.create_message(
@@ -112,10 +125,17 @@ class ChatService:
             CHAT_ROLE_ASSISTANT,
             answer or NOT_AVAILABLE_ANSWER,
         )
-        await chat_repository.create_message_sources(
+        await chat_repository.create_chunk_message_sources(
             db,
             assistant_message.id,
-            document_context.source_ids,
+            [
+                (
+                    source.document_id,
+                    source.chunk_id,
+                    source.similarity_score,
+                )
+                for source in document_context.sources
+            ],
         )
         await chat_repository.create_ai_run(
             db=db,

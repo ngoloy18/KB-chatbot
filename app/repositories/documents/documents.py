@@ -1,5 +1,8 @@
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
+import json
+import math
 from uuid import UUID
 
 from sqlalchemy import and_, delete, false, func, select
@@ -18,6 +21,27 @@ from app.models.database import (
     DocumentVersion,
 )
 from app.schemas.documents.schemas import DocumentCreate, DocumentUpdate
+
+
+@dataclass(frozen=True)
+class DocumentChunkPayload:
+    """Chunk data ready to persist, optionally with an embedding."""
+
+    chunk_index: int
+    content: str
+    token_count: int
+    embedding: list[float] | None = None
+    embedding_provider: str | None = None
+    embedding_model: str | None = None
+
+
+@dataclass(frozen=True)
+class DocumentChunkMatch:
+    """Retrieved chunk plus document metadata and similarity score."""
+
+    chunk: DocumentChunk
+    document: Document
+    similarity_score: float
 
 
 class DocumentRepository:
@@ -207,6 +231,69 @@ class DocumentRepository:
         rows = await db.execute(search_query)
         return list(rows.all()), total or 0
 
+    async def search_document_chunks_by_embedding(
+        self,
+        db: AsyncSession,
+        query_embedding: list[float],
+        embedding_provider: str,
+        embedding_model: str,
+        top_k: int,
+        min_similarity: float = 0,
+        user_id: UUID | None = None,
+        include_all: bool = False,
+    ) -> list[DocumentChunkMatch]:
+        """Return top readable chunks ordered by pgvector cosine similarity."""
+
+        filters = [
+            DocumentChunk.embedding.is_not(None),
+            DocumentChunk.embedding_provider == embedding_provider,
+            DocumentChunk.embedding_model == embedding_model,
+            Document.status == DOCUMENT_STATUS_READY,
+            Document.is_deleted.is_(False),
+        ]
+        if user_id is not None and not include_all:
+            filters.append(
+                Document.id.in_(
+                    select(DocumentPermission.document_id).where(
+                        and_(
+                            DocumentPermission.user_id == user_id,
+                            DocumentPermission.permission.in_(DOCUMENT_READ_PERMISSIONS),
+                        )
+                    )
+                )
+            )
+        elif not include_all:
+            filters.append(false())
+
+        candidate_query = (
+            select(DocumentChunk, Document)
+            .join(Document)
+            .join(DocumentCategoryModel)
+            .options(selectinload(Document.category))
+            .where(*filters)
+            .order_by(Document.updated_at.desc(), DocumentChunk.chunk_index.asc())
+        )
+        rows = await db.execute(candidate_query)
+        matches: list[DocumentChunkMatch] = []
+        for chunk, document in rows.all():
+            if chunk.embedding is None:
+                continue
+            similarity = _cosine_similarity(
+                query_embedding,
+                _deserialize_embedding(chunk.embedding),
+            )
+            if similarity < min_similarity:
+                continue
+            matches.append(
+                DocumentChunkMatch(
+                    chunk=chunk,
+                    document=document,
+                    similarity_score=similarity,
+                )
+            )
+        matches.sort(key=lambda match: match.similarity_score, reverse=True)
+        return matches[:top_k]
+
     async def user_has_document_permission(
         self,
         db: AsyncSession,
@@ -297,7 +384,7 @@ class DocumentRepository:
         self,
         db: AsyncSession,
         document: Document,
-        chunks: list[tuple[int, str, int]],
+        chunks: list[DocumentChunkPayload],
     ) -> None:
         """Replace every stored chunk for one document."""
 
@@ -308,11 +395,22 @@ class DocumentRepository:
             [
                 DocumentChunk(
                     document_id=document.id,
-                    chunk_index=chunk_index,
-                    content=content,
-                    token_count=token_count,
+                    chunk_index=chunk.chunk_index,
+                    content=chunk.content,
+                    token_count=chunk.token_count,
+                    embedding=_serialize_embedding(chunk.embedding),
+                    embedding_provider=chunk.embedding_provider,
+                    embedding_model=chunk.embedding_model,
+                    embedding_dimensions=(
+                        len(chunk.embedding) if chunk.embedding is not None else None
+                    ),
+                    embedded_at=(
+                        datetime.now(UTC)
+                        if chunk.embedding is not None
+                        else None
+                    ),
                 )
-                for chunk_index, content, token_count in chunks
+                for chunk in chunks
             ]
         )
         await db.commit()
@@ -457,3 +555,31 @@ class DocumentRepository:
 
 
 document_repository = DocumentRepository()
+
+
+def _serialize_embedding(embedding: list[float] | None) -> str | None:
+    """Serialize a vector for storage in PostgreSQL text/pgvector-compatible form."""
+
+    if embedding is None:
+        return None
+    return json.dumps([float(value) for value in embedding], separators=(",", ":"))
+
+
+def _deserialize_embedding(embedding: str) -> list[float]:
+    """Parse a stored embedding vector."""
+
+    values = json.loads(embedding)
+    return [float(value) for value in values]
+
+
+def _cosine_similarity(left: list[float], right: list[float]) -> float:
+    """Return cosine similarity for two same-sized vectors."""
+
+    if len(left) != len(right) or not left:
+        return 0.0
+    dot_product = sum(left_value * right_value for left_value, right_value in zip(left, right))
+    left_norm = math.sqrt(sum(left_value * left_value for left_value in left))
+    right_norm = math.sqrt(sum(right_value * right_value for right_value in right))
+    if left_norm == 0 or right_norm == 0:
+        return 0.0
+    return dot_product / (left_norm * right_norm)

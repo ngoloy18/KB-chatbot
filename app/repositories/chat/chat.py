@@ -175,5 +175,26 @@ class ChatRepository:
         await db.commit()
         return sources
 
+    async def create_chunk_message_sources(
+        self,
+        db: AsyncSession,
+        message_id: UUID,
+        sources: list[tuple[UUID, UUID, float | None]],
+    ) -> list[MessageSource]:
+        """Attach retrieved chunk citations to an assistant message."""
+
+        message_sources = [
+            MessageSource(
+                message_id=message_id,
+                document_id=document_id,
+                chunk_id=chunk_id,
+                similarity_score=similarity_score,
+            )
+            for document_id, chunk_id, similarity_score in sources
+        ]
+        db.add_all(message_sources)
+        await db.commit()
+        return message_sources
+
 
 chat_repository = ChatRepository()

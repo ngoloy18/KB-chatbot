@@ -9,9 +9,12 @@ from app.constants.permissions import (
     DOCUMENT_WRITE_PERMISSIONS,
 )
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
-from app.core.config import DocumentCategory
+from app.core.config import DocumentCategory, settings
 from app.models.database import Document
-from app.repositories.documents.documents import document_repository
+from app.repositories.documents.documents import (
+    DocumentChunkPayload,
+    document_repository,
+)
 from app.repositories.users.users import user_repository
 from app.schemas.documents.schemas import (
     DocumentCreate,
@@ -34,6 +37,7 @@ from app.services.documents.exceptions import (
     DocumentPermissionNotFoundError,
 )
 from app.services.documents.chunking import document_chunking_service
+from app.services.ai import AIProviderError, EmbeddingDocument, create_embedding_provider
 from app.services.users.exceptions import UserNotFoundError
 
 
@@ -424,11 +428,41 @@ class DocumentService:
         """Split document text and replace rows in kb.document_chunks."""
 
         chunks = document_chunking_service.split_text(content)
+        chunk_embeddings: list[list[float] | None] = [None for _ in chunks]
+        embedding_provider_name = None
+        embedding_model_name = None
+        if settings.embeddings_enabled and chunks:
+            embedding_provider = create_embedding_provider()
+            embeddings = await embedding_provider.embed_documents(
+                [
+                    EmbeddingDocument(
+                        title=document.title,
+                        content=chunk.content,
+                    )
+                    for chunk in chunks
+                ]
+            )
+            if len(embeddings) != len(chunks):
+                raise AIProviderError(
+                    "Embedding provider returned a different number of vectors "
+                    "than document chunks."
+                )
+            chunk_embeddings = embeddings
+            embedding_provider_name = embedding_provider.provider_name
+            embedding_model_name = embedding_provider.model_name
+
         await document_repository.replace_document_chunks(
             db=db,
             document=document,
             chunks=[
-                (chunk.chunk_index, chunk.content, chunk.token_count)
-                for chunk in chunks
+                DocumentChunkPayload(
+                    chunk_index=chunk.chunk_index,
+                    content=chunk.content,
+                    token_count=chunk.token_count,
+                    embedding=chunk_embeddings[index],
+                    embedding_provider=embedding_provider_name,
+                    embedding_model=embedding_model_name,
+                )
+                for index, chunk in enumerate(chunks)
             ],
         )
