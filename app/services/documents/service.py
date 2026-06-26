@@ -1,3 +1,4 @@
+import hashlib
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,11 +22,14 @@ from app.schemas.documents.schemas import (
     DocumentPermissionUpsertRequest,
     DocumentResponse,
     DocumentUpdate,
+    DocumentVersionListResponse,
+    DocumentVersionResponse,
     document_to_response,
 )
 from app.services.documents.exceptions import (
     DocumentAccessDeniedError,
     DocumentCategoryNotFoundError,
+    DocumentDuplicateError,
     DocumentNotFoundError,
     DocumentPermissionNotFoundError,
 )
@@ -136,6 +140,12 @@ class DocumentService:
     ) -> DocumentResponse:
         """Create a new document."""
 
+        checksum = payload.content_checksum or self._calculate_content_checksum(
+            payload.content
+        )
+        await self._raise_if_duplicate_checksum(db, checksum)
+        payload = payload.model_copy(update={"content_checksum": checksum})
+
         # Convert the public enum value into the category row's UUID foreign key.
         category = await document_repository.get_category_by_name(db, payload.category)
         if category is None:
@@ -149,6 +159,7 @@ class DocumentService:
             category=category,
         )
         await self._replace_document_chunks(db, document, payload.content)
+        await document_repository.create_document_version(db, document)
         return document_to_response(document)
 
     async def update_document(
@@ -187,6 +198,17 @@ class DocumentService:
                     f"Document category {payload.category.value} was not found in the database."
                 )
 
+        if payload.content is not None:
+            checksum = payload.content_checksum or self._calculate_content_checksum(
+                payload.content
+            )
+            await self._raise_if_duplicate_checksum(
+                db,
+                checksum,
+                exclude_document_id=document_id,
+            )
+            payload = payload.model_copy(update={"content_checksum": checksum})
+
         document = await document_repository.update_document(
             db=db,
             document=document,
@@ -195,6 +217,7 @@ class DocumentService:
         )
         if payload.content is not None:
             await self._replace_document_chunks(db, document, payload.content)
+        await document_repository.create_document_version(db, document)
         return document_to_response(document)
 
     async def delete_document(
@@ -219,7 +242,88 @@ class DocumentService:
             )
             if not user_can_delete:
                 raise DocumentAccessDeniedError("Owner permission is required.")
-        await document_repository.delete_document(db, document)
+        await document_repository.soft_delete_document(db, document)
+
+    async def restore_document(
+        self,
+        db: AsyncSession,
+        document_id: UUID,
+        current_user_id: UUID | None = None,
+        is_admin: bool = False,
+    ) -> DocumentResponse:
+        """Restore one soft-deleted document."""
+
+        document = await self._get_document_or_raise(
+            db,
+            document_id,
+            include_deleted=True,
+        )
+        if not is_admin:
+            if current_user_id is None:
+                raise DocumentAccessDeniedError("Login is required to restore documents.")
+            user_can_restore = await document_repository.user_has_document_permission(
+                db,
+                document_id,
+                current_user_id,
+                DOCUMENT_DELETE_PERMISSIONS,
+            )
+            if not user_can_restore:
+                raise DocumentAccessDeniedError("Owner permission is required.")
+        if document.content_checksum is not None:
+            await self._raise_if_duplicate_checksum(
+                db,
+                document.content_checksum,
+                exclude_document_id=document.id,
+            )
+        restored = await document_repository.restore_document(db, document)
+        return document_to_response(restored)
+
+    async def list_document_versions(
+        self,
+        db: AsyncSession,
+        document_id: UUID,
+        current_user_id: UUID | None = None,
+        is_admin: bool = False,
+    ) -> DocumentVersionListResponse:
+        """Return version history for one document."""
+
+        document = await self._get_document_or_raise(
+            db,
+            document_id,
+            include_deleted=True,
+        )
+        if not is_admin:
+            if current_user_id is None:
+                raise DocumentAccessDeniedError("Login is required to read versions.")
+            user_can_read = await document_repository.user_has_document_permission(
+                db,
+                document_id,
+                current_user_id,
+                DOCUMENT_READ_PERMISSIONS,
+            )
+            if not user_can_read:
+                raise DocumentAccessDeniedError("You do not have access to this document.")
+
+        versions = await document_repository.list_document_versions(db, document.id)
+        return DocumentVersionListResponse(
+            items=[
+                DocumentVersionResponse(
+                    id=version.id,
+                    document_id=version.document_id,
+                    version_number=version.version_number,
+                    name=version.title,
+                    category=DocumentCategory(version.category.name),
+                    file_name=version.file_name,
+                    file_path=version.file_path,
+                    file_type=version.file_type,
+                    content_checksum=version.content_checksum,
+                    content=version.content,
+                    created_at=version.created_at,
+                )
+                for version in versions
+            ],
+            total=len(versions),
+        )
 
     async def list_document_permissions(
         self,
@@ -274,13 +378,42 @@ class DocumentService:
         self,
         db: AsyncSession,
         document_id: UUID,
+        include_deleted: bool = False,
     ) -> Document:
         """Load one document or raise a service-level not-found error."""
 
-        document = await document_repository.get_document_by_id(db, document_id)
+        document = await document_repository.get_document_by_id(
+            db,
+            document_id,
+            include_deleted=include_deleted,
+        )
         if document is None:
             raise DocumentNotFoundError(f"Document {document_id} was not found.")
         return document
+
+    async def _raise_if_duplicate_checksum(
+        self,
+        db: AsyncSession,
+        checksum: str,
+        exclude_document_id: UUID | None = None,
+    ) -> None:
+        """Raise when another active document already has this checksum."""
+
+        duplicate = await document_repository.get_active_document_by_checksum(
+            db,
+            checksum,
+            exclude_document_id=exclude_document_id,
+        )
+        if duplicate is not None:
+            raise DocumentDuplicateError(
+                f"An active document with the same checksum already exists: {duplicate.id}."
+            )
+
+    @staticmethod
+    def _calculate_content_checksum(content: str) -> str:
+        """Return a stable SHA-256 checksum for document content."""
+
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
     async def _replace_document_chunks(
         self,

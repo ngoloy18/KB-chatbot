@@ -80,8 +80,8 @@ def upgrade() -> None:
             encode(digest(email_verification_token, 'sha256'), 'hex'),
             COALESCE(email_verification_sent_at, now()) + interval '24 hours',
             false,
-            now(),
-            now()
+            COALESCE(email_verification_sent_at, now()),
+            COALESCE(email_verification_sent_at, now())
         FROM {SCHEMA}.users
         WHERE email_verification_token IS NOT NULL
         """

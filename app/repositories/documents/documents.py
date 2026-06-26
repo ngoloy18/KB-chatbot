@@ -1,6 +1,8 @@
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import and_, delete, func, select
+from sqlalchemy import and_, delete, false, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -13,6 +15,7 @@ from app.models.database import (
     DocumentCategoryModel,
     DocumentChunk,
     DocumentPermission,
+    DocumentVersion,
 )
 from app.schemas.documents.schemas import DocumentCreate, DocumentUpdate
 
@@ -33,7 +36,7 @@ class DocumentRepository:
         """Return matching document ORM rows and their total count."""
 
         # Build SQL WHERE conditions only for filters the client provided.
-        filters = []
+        filters = [Document.is_deleted.is_(False)]
         if name is not None:
             filters.append(Document.title.ilike(f"%{name}%"))
         if category is not None:
@@ -77,15 +80,78 @@ class DocumentRepository:
         self,
         db: AsyncSession,
         document_id: UUID,
+        include_deleted: bool = False,
     ) -> Document | None:
         """Load one document ORM object with its category relationship."""
 
+        filters = [Document.id == document_id]
+        if not include_deleted:
+            filters.append(Document.is_deleted.is_(False))
         query = (
             select(Document)
             .options(selectinload(Document.category))
-            .where(Document.id == document_id)
+            .where(*filters)
         )
         return await db.scalar(query)
+
+    async def get_active_document_by_checksum(
+        self,
+        db: AsyncSession,
+        checksum: str,
+        exclude_document_id: UUID | None = None,
+    ) -> Document | None:
+        """Return an active document with the same checksum if one exists."""
+
+        filters = [
+            Document.content_checksum == checksum,
+            Document.is_deleted.is_(False),
+        ]
+        if exclude_document_id is not None:
+            filters.append(Document.id != exclude_document_id)
+        query = select(Document).where(*filters)
+        return await db.scalar(query)
+
+    async def list_documents_for_context(
+        self,
+        db: AsyncSession,
+        categories: Sequence[DocumentCategory],
+        user_id: UUID | None = None,
+        include_all: bool = True,
+    ) -> list[Document]:
+        """Load full documents for long-context Q&A."""
+
+        category_names = [category.value for category in categories]
+        filters = [
+            DocumentCategoryModel.name.in_(category_names),
+            Document.status == DOCUMENT_STATUS_READY,
+            Document.is_deleted.is_(False),
+        ]
+        if not include_all:
+            if user_id is None:
+                filters.append(false())
+            else:
+                filters.append(
+                    Document.id.in_(
+                        select(DocumentPermission.document_id).where(
+                            and_(
+                                DocumentPermission.user_id == user_id,
+                                DocumentPermission.permission.in_(
+                                    DOCUMENT_READ_PERMISSIONS
+                                ),
+                            )
+                        )
+                    )
+                )
+
+        query = (
+            select(Document)
+            .join(DocumentCategoryModel)
+            .options(selectinload(Document.category))
+            .where(*filters)
+            .order_by(DocumentCategoryModel.name.asc(), Document.created_at.desc())
+        )
+        rows = await db.scalars(query)
+        return list(rows.all())
 
     async def search_document_chunks(
         self,
@@ -99,7 +165,11 @@ class DocumentRepository:
     ) -> tuple[list[tuple[DocumentChunk, Document]], int]:
         """Search document chunk content and return matching chunks with documents."""
 
-        filters = [DocumentChunk.content.ilike(f"%{query_text}%")]
+        filters = [
+            DocumentChunk.content.ilike(f"%{query_text}%"),
+            Document.status == DOCUMENT_STATUS_READY,
+            Document.is_deleted.is_(False),
+        ]
         if category is not None:
             filters.append(DocumentCategoryModel.name == category.value)
         if user_id is not None and not include_all:
@@ -183,6 +253,7 @@ class DocumentRepository:
             file_name=payload.file_name,
             file_path=payload.file_path,
             file_type=payload.file_type,
+            content_checksum=payload.content_checksum,
             content=payload.content,
             status=DOCUMENT_STATUS_READY,
         )
@@ -212,6 +283,8 @@ class DocumentRepository:
             document.file_path = payload.file_path
         if payload.file_type is not None:
             document.file_type = payload.file_type
+        if payload.content_checksum is not None:
+            document.content_checksum = payload.content_checksum
         if category is not None:
             document.category_id = category.id
             document.category = category
@@ -243,6 +316,71 @@ class DocumentRepository:
             ]
         )
         await db.commit()
+
+    async def soft_delete_document(self, db: AsyncSession, document: Document) -> Document:
+        """Mark one document as deleted without removing its row."""
+
+        document.is_deleted = True
+        document.deleted_at = datetime.now(UTC)
+        await db.commit()
+        await db.refresh(document)
+        return document
+
+    async def restore_document(self, db: AsyncSession, document: Document) -> Document:
+        """Restore a previously soft-deleted document."""
+
+        document.is_deleted = False
+        document.deleted_at = None
+        await db.commit()
+        await db.refresh(document)
+        return document
+
+    async def create_document_version(
+        self,
+        db: AsyncSession,
+        document: Document,
+    ) -> DocumentVersion:
+        """Create a version snapshot for the current document state."""
+
+        next_version = (
+            await db.scalar(
+                select(func.max(DocumentVersion.version_number)).where(
+                    DocumentVersion.document_id == document.id
+                )
+            )
+            or 0
+        ) + 1
+        version = DocumentVersion(
+            document_id=document.id,
+            version_number=next_version,
+            title=document.title,
+            category_id=document.category_id,
+            file_name=document.file_name,
+            file_path=document.file_path,
+            file_type=document.file_type,
+            content_checksum=document.content_checksum,
+            content=document.content,
+        )
+        db.add(version)
+        await db.commit()
+        await db.refresh(version)
+        return version
+
+    async def list_document_versions(
+        self,
+        db: AsyncSession,
+        document_id: UUID,
+    ) -> list[DocumentVersion]:
+        """Return every version snapshot for one document."""
+
+        query = (
+            select(DocumentVersion)
+            .options(selectinload(DocumentVersion.category))
+            .where(DocumentVersion.document_id == document_id)
+            .order_by(DocumentVersion.version_number.desc())
+        )
+        rows = await db.scalars(query)
+        return list(rows.all())
 
     async def delete_document(self, db: AsyncSession, document: Document) -> None:
         """Delete one loaded document row from PostgreSQL."""

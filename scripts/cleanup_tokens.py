@@ -16,9 +16,10 @@ from app.repositories.auth.password_reset_tokens import password_reset_token_rep
 
 
 async def cleanup_tokens() -> None:
-    """Delete old used/expired auth helper tokens."""
+    """Delete expired auth helper tokens and used tokens past retention."""
 
-    # Retention is configurable so local/dev/prod can keep different history.
+    # Retention keeps used token history briefly; expired tokens are removed
+    # immediately because they can no longer be used.
     email_older_than = datetime.now(UTC) - timedelta(
         days=settings.email_verification_token_retention_days
     )

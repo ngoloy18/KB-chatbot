@@ -5,13 +5,15 @@ SQLAlchemy, and Alembic.
 
 ## Current Status
 
-This project is on Week 3: Authentication + File Upload.
+This project has completed the Week 3 authentication/upload base and now includes
+the first AI chat backend.
 
 The document API now stores uploaded documents in PostgreSQL instead of an
 in-memory dictionary. Data should stay available after the API server restarts.
 Auth endpoints use JWT access and refresh tokens, logout revokes refresh tokens,
 and document upload is protected by admin role. Admin users can also list,
-update, and delete user accounts.
+update, and delete user accounts. The chat API can answer from uploaded
+engineering-standard documents through a configurable AI provider.
 
 ## Requirements
 
@@ -34,7 +36,7 @@ The project tables live in the PostgreSQL schema:
 kb
 ```
 
-The database currently uses these 12 tables:
+The database currently uses these 13 tables:
 
 ```text
 kb.users
@@ -44,6 +46,7 @@ kb.document_categories
 kb.documents
 kb.document_chunks
 kb.document_permissions
+kb.document_versions
 kb.chat_sessions
 kb.chat_messages
 kb.message_sources
@@ -69,6 +72,10 @@ APP_NAME=developer-kb-chatbot
 APP_TITLE=Developer KB Chatbot API
 APP_VERSION=0.2.0
 APP_DESCRIPTION=FastAPI with SQLAlchemy, JWT auth, and protected uploads.
+AI_PROVIDER=gemini
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=your_flash_model_from_ai_studio
+CHAT_HISTORY_LIMIT=12
 DATABASE_URL=postgresql+asyncpg://postgres:your_password@localhost:5123/chatbot_db
 DATABASE_ECHO=false
 DATABASE_SCHEMA=kb
@@ -123,9 +130,17 @@ Swagger while also sending emails. In production, set it to `false`.
 easy to abuse, such as login, register, password reset, resend verification, and
 document upload.
 
+`AI_PROVIDER=gemini` selects the Gemini provider. Set `GEMINI_MODEL` to a Flash
+model available in your AI Studio project instead of hard-coding a model name in
+the app.
+
+`CHAT_HISTORY_LIMIT` controls how many previous messages are sent with each
+multi-turn chat request.
+
 `EMAIL_VERIFICATION_TOKEN_RETENTION_DAYS=7` and
-`PASSWORD_RESET_TOKEN_RETENTION_DAYS=7` mean used or expired auth token rows can
-be deleted after 7 days by the cleanup script.
+`PASSWORD_RESET_TOKEN_RETENTION_DAYS=7` mean used auth token rows can be kept
+briefly for debugging/history. Expired token rows are removed whenever the
+cleanup script runs.
 
 ## Install
 
@@ -171,7 +186,9 @@ py tests/test_auth_flow.py
 py tests/test_auth_password_validation.py
 py tests/test_rate_limiter.py
 py tests/test_document_chunking.py
+py tests/test_document_lifecycle.py
 py tests/test_document_search.py
+py tests/test_chat_flow.py
 py tests/test_token_cleanup.py
 py tests/test_user_soft_delete.py
 ```
@@ -182,13 +199,14 @@ smoke test:
 ```powershell
 py tests/test_api_smoke.py
 py tests/test_upload_rules.py
+py tests/test_document_lifecycle_api.py
 ```
 
 Expected success output:
 
 ```text
 Database connection OK: connected to 'chatbot_db'.
-Schema OK: found kb schema and all 12 expected tables.
+Schema OK: found kb schema and all 13 expected tables.
 Categories OK: found all 6 document categories.
 ```
 
@@ -224,8 +242,8 @@ Running it twice does not create duplicate admins.
 ## Cleanup Old Tokens
 
 Email verification and password reset tokens are stored for short-term
-debugging/security history. Delete used or expired token rows older than the
-configured retention windows with:
+debugging/security history. Delete expired token rows and used token rows past
+the configured retention windows with:
 
 ```powershell
 py scripts/cleanup_tokens.py
@@ -259,19 +277,27 @@ app/
     database.py   central model exports for Alembic and compatibility
   repositories/
     auth/         verification-token and refresh-token persistence
+    chat/         chat session/message/source persistence
     documents/    document persistence
     users/        user persistence
   routes/
+    ask/          stateless document Q&A compatibility route
     auth/         register/login/logout/password/profile routes
+    chat/         authenticated multi-turn chat routes
     documents/    document and permission routes
     health/       health route
     users/        admin user routes
   schemas/
+    ask/          stateless Q&A request/response schemas
     auth/         auth request/response schemas
+    chat/         chat request/session/message response schemas
     documents/    document request/response schemas
     users/        user admin schemas
   services/
+    ai/           configurable AI provider implementations
+    ask/          long-context document Q&A context and service
     auth/         auth business logic and email sender
+    chat/         multi-turn chat business logic
     documents/    document business logic
     users/        user admin business logic
   main.py         FastAPI app entrypoint
@@ -292,6 +318,12 @@ Repositories contain SQLAlchemy queries and database commits.
 ## Endpoints
 
 - `GET /api/health` checks whether the API process is running.
+- `POST /api/ask` answers a question from the cached engineering standards document context.
+- `POST /ask` is a root alias for the same document Q&A flow.
+- `POST /api/chat` creates or continues an authenticated multi-turn chat session.
+- `GET /api/chat/sessions` lists only the authenticated user's chat sessions.
+- `GET /api/chat/sessions/{session_id}` returns only a session owned by the authenticated user.
+- `DELETE /api/chat/sessions/{session_id}` deletes only a session owned by the authenticated user.
 - `POST /api/auth/register` creates a normal user.
 - `POST /api/auth/verify-email` verifies a registered user's email token.
 - `POST /api/auth/resend-verification` sends a fresh verification token.
@@ -308,12 +340,14 @@ Repositories contain SQLAlchemy queries and database commits.
 - `DELETE /api/users/{user_id}` deletes one user as admin.
 - `GET /api/documents` lists paginated documents and supports optional `name` and `category` filtering.
 - `GET /api/documents/{document_id}` returns one document by UUID or `404`.
+- `GET /api/documents/{document_id}/versions` returns document version history.
 - `GET /api/documents/{document_id}/permissions` lists access rules for a document as admin.
 - `PUT /api/documents/{document_id}/permissions` grants or updates one user's access as admin.
 - `DELETE /api/documents/{document_id}/permissions/{user_id}` revokes one user's access as admin.
 - `POST /api/documents/upload` creates a document from an admin markdown upload.
 - `PUT /api/documents/{document_id}` replaces a document as admin or a user with `write`/`owner` permission.
-- `DELETE /api/documents/{document_id}` deletes a document as admin or a user with `owner` permission.
+- `PATCH /api/documents/{document_id}/restore` restores a soft-deleted document as admin or owner.
+- `DELETE /api/documents/{document_id}` soft-deletes a document as admin or owner.
 
 ## Swagger Test Checklist
 

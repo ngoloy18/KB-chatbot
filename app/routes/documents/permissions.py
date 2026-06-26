@@ -11,6 +11,7 @@ from app.schemas.documents.schemas import (
     DocumentPermissionUpsertRequest,
 )
 from app.services import document_service
+from app.services.ask import invalidate_context_cache
 from app.services.documents.exceptions import (
     DocumentNotFoundError,
     DocumentPermissionNotFoundError,
@@ -54,7 +55,13 @@ async def grant_document_permission(
     """Grant or update one user's access to one document."""
 
     try:
-        return await document_service.grant_document_permission(db, document_id, payload)
+        permission = await document_service.grant_document_permission(
+            db,
+            document_id,
+            payload,
+        )
+        invalidate_context_cache()
+        return permission
     except DocumentNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     except UserNotFoundError as exc:
@@ -76,6 +83,7 @@ async def revoke_document_permission(
 
     try:
         await document_service.revoke_document_permission(db, document_id, user_id)
+        invalidate_context_cache()
     except DocumentNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     except DocumentPermissionNotFoundError as exc:

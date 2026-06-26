@@ -82,8 +82,11 @@ CREATE TABLE IF NOT EXISTS kb.documents
     file_name character varying(255) COLLATE pg_catalog."default",
     file_path text COLLATE pg_catalog."default",
     file_type character varying(50) COLLATE pg_catalog."default",
+    content_checksum character varying(64) COLLATE pg_catalog."default",
     content text COLLATE pg_catalog."default" NOT NULL,
     status character varying(30) COLLATE pg_catalog."default" NOT NULL DEFAULT 'uploaded'::character varying,
+    is_deleted boolean NOT NULL DEFAULT false,
+    deleted_at timestamp with time zone,
     created_by uuid,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -118,6 +121,66 @@ CREATE INDEX IF NOT EXISTS idx_documents_category_id
 CREATE INDEX IF NOT EXISTS idx_documents_created_by
     ON kb.documents USING btree
     (created_by ASC NULLS LAST)
+    TABLESPACE pg_default;
+-- Index: idx_documents_content_checksum
+
+-- DROP INDEX IF EXISTS kb.idx_documents_content_checksum;
+
+CREATE INDEX IF NOT EXISTS idx_documents_content_checksum
+    ON kb.documents USING btree
+    (content_checksum ASC NULLS LAST)
+    TABLESPACE pg_default;
+-- Index: idx_documents_is_deleted
+
+-- DROP INDEX IF EXISTS kb.idx_documents_is_deleted;
+
+CREATE INDEX IF NOT EXISTS idx_documents_is_deleted
+    ON kb.documents USING btree
+    (is_deleted ASC NULLS LAST)
+    TABLESPACE pg_default;
+
+
+-- Table: kb.document_versions
+
+-- DROP TABLE IF EXISTS kb.document_versions;
+
+CREATE TABLE IF NOT EXISTS kb.document_versions
+(
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    document_id uuid NOT NULL,
+    version_number integer NOT NULL,
+    title character varying(120) COLLATE pg_catalog."default" NOT NULL,
+    category_id uuid NOT NULL,
+    file_name character varying(255) COLLATE pg_catalog."default",
+    file_path text COLLATE pg_catalog."default",
+    file_type character varying(50) COLLATE pg_catalog."default",
+    content_checksum character varying(64) COLLATE pg_catalog."default",
+    content text COLLATE pg_catalog."default" NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT document_versions_pkey PRIMARY KEY (id),
+    CONSTRAINT document_versions_unique_document_version UNIQUE (document_id, version_number),
+    CONSTRAINT document_versions_category_id_fkey FOREIGN KEY (category_id)
+        REFERENCES kb.document_categories (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION,
+    CONSTRAINT document_versions_document_id_fkey FOREIGN KEY (document_id)
+        REFERENCES kb.documents (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS kb.document_versions
+    OWNER to postgres;
+-- Index: idx_document_versions_document_id
+
+-- DROP INDEX IF EXISTS kb.idx_document_versions_document_id;
+
+CREATE INDEX IF NOT EXISTS idx_document_versions_document_id
+    ON kb.document_versions USING btree
+    (document_id ASC NULLS LAST)
     TABLESPACE pg_default;
 
 
@@ -334,5 +397,3 @@ CREATE INDEX IF NOT EXISTS idx_ai_runs_session_id
 CREATE EXTENSION IF NOT EXISTS pgcrypto
     SCHEMA public
     VERSION "1.4";
-
-    

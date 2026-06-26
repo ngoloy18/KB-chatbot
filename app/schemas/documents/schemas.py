@@ -36,6 +36,7 @@ class DocumentCreate(BaseModel):
     file_name: str | None = None
     file_path: str | None = None
     file_type: str | None = None
+    content_checksum: str | None = None
 
 
 class DocumentUploadRequest(BaseModel):
@@ -67,6 +68,7 @@ class DocumentUpdate(BaseModel):
     file_name: str | None = None
     file_path: str | None = None
     file_type: str | None = None
+    content_checksum: str | None = None
 
 
 class DocumentResponse(BaseModel):
@@ -84,7 +86,10 @@ class DocumentResponse(BaseModel):
     file_name: str | None = None
     file_path: str | None = None
     file_type: str | None = None
+    content_checksum: str | None = None
     content: str
+    is_deleted: bool = False
+    deleted_at: datetime | None = None
     created_at: datetime
 
 
@@ -131,9 +136,35 @@ def document_to_response(document: Document) -> DocumentResponse:
         file_name=document.file_name,
         file_path=document.file_path,
         file_type=document.file_type,
+        content_checksum=document.content_checksum,
         content=document.content,
+        is_deleted=document.is_deleted,
+        deleted_at=document.deleted_at,
         created_at=document.created_at,
     )
+
+
+class DocumentVersionResponse(BaseModel):
+    """One immutable document version snapshot."""
+
+    id: UUID
+    document_id: UUID
+    version_number: int
+    name: str
+    category: DocumentCategory
+    file_name: str | None = None
+    file_path: str | None = None
+    file_type: str | None = None
+    content_checksum: str | None = None
+    content: str
+    created_at: datetime
+
+
+class DocumentVersionListResponse(BaseModel):
+    """Version history for one document."""
+
+    items: list[DocumentVersionResponse]
+    total: int
 
 
 class DocumentPermissionUpsertRequest(BaseModel):

@@ -77,8 +77,8 @@ def upgrade() -> None:
             password_reset_token_hash,
             password_reset_sent_at + interval '{settings.password_reset_token_expire_minutes} minutes',
             false,
-            now(),
-            now()
+            password_reset_sent_at,
+            password_reset_sent_at
         FROM {SCHEMA}.users
         WHERE password_reset_token_hash IS NOT NULL
           AND password_reset_sent_at IS NOT NULL

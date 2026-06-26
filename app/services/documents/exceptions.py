@@ -20,3 +20,9 @@ class DocumentPermissionNotFoundError(ValueError):
     """Raised when a document permission row does not exist."""
 
     pass
+
+
+class DocumentDuplicateError(ValueError):
+    """Raised when an active document already has the same checksum."""
+
+    pass

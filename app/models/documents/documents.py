@@ -1,6 +1,8 @@
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, ForeignKey, String, Text
+from datetime import datetime
+
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -48,6 +50,7 @@ class Document(TimestampMixin, Base):
     file_name: Mapped[str | None] = mapped_column(String(255))
     file_path: Mapped[str | None] = mapped_column(Text)
     file_type: Mapped[str | None] = mapped_column(String(50))
+    content_checksum: Mapped[str | None] = mapped_column(String(64))
     # Content is stored as text so the app can search/read it immediately.
     content: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(
@@ -60,6 +63,8 @@ class Document(TimestampMixin, Base):
         PostgresUUID(as_uuid=True),
         ForeignKey(f"{SCHEMA_NAME}.users.id"),
     )
+    is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Relationships connect this document to category, owner, chunks, and sources.
     category: Mapped["DocumentCategoryModel"] = relationship(back_populates="documents")
@@ -74,6 +79,10 @@ class Document(TimestampMixin, Base):
     )
     message_sources: Mapped[list["MessageSource"]] = relationship(
         back_populates="document"
+    )
+    versions: Mapped[list["DocumentVersion"]] = relationship(
+        back_populates="document",
+        cascade="all, delete-orphan",
     )
 
     @property

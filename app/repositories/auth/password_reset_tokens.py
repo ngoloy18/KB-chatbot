@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.database import PasswordResetToken
@@ -68,14 +68,24 @@ class PasswordResetTokenRepository:
         db: AsyncSession,
         older_than: datetime,
     ) -> int:
-        """Delete used or expired reset tokens after the retention window passes."""
+        """Delete expired reset tokens and old used reset tokens."""
+
+        now = datetime.now(UTC)
 
         result = await db.execute(
             delete(PasswordResetToken).where(
-                PasswordResetToken.created_at < older_than,
                 or_(
-                    PasswordResetToken.is_used.is_(True),
-                    PasswordResetToken.expires_at < datetime.now(UTC),
+                    PasswordResetToken.expires_at < now,
+                    and_(
+                        PasswordResetToken.is_used.is_(True),
+                        or_(
+                            PasswordResetToken.used_at < older_than,
+                            and_(
+                                PasswordResetToken.used_at.is_(None),
+                                PasswordResetToken.created_at < older_than,
+                            ),
+                        ),
+                    ),
                 ),
             )
         )

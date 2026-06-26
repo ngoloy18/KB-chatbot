@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.database import EmailVerificationToken
@@ -72,14 +72,24 @@ class EmailVerificationTokenRepository:
         db: AsyncSession,
         older_than: datetime,
     ) -> int:
-        """Delete used or expired tokens after the retention window passes."""
+        """Delete expired tokens and old used tokens."""
+
+        now = datetime.now(UTC)
 
         result = await db.execute(
             delete(EmailVerificationToken).where(
-                EmailVerificationToken.created_at < older_than,
                 or_(
-                    EmailVerificationToken.is_used.is_(True),
-                    EmailVerificationToken.expires_at < datetime.now(UTC),
+                    EmailVerificationToken.expires_at < now,
+                    and_(
+                        EmailVerificationToken.is_used.is_(True),
+                        or_(
+                            EmailVerificationToken.used_at < older_than,
+                            and_(
+                                EmailVerificationToken.used_at.is_(None),
+                                EmailVerificationToken.created_at < older_than,
+                            ),
+                        ),
+                    ),
                 ),
             )
         )

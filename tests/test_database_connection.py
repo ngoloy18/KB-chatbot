@@ -21,6 +21,7 @@ EXPECTED_TABLES = {
     "document_chunks",
     "document_permissions",
     "documents",
+    "document_versions",
     "email_verification_tokens",
     "message_sources",
     "password_reset_tokens",
@@ -98,7 +99,7 @@ async def check_database_connection() -> None:
             )
 
     print(f"Database connection OK: connected to '{database_name}'.")
-    print(f"Schema OK: found {SCHEMA_NAME} schema and all 12 expected tables.")
+    print(f"Schema OK: found {SCHEMA_NAME} schema and all 13 expected tables.")
     print("Categories OK: found all 6 document categories.")
 
 

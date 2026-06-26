@@ -30,11 +30,14 @@ from app.schemas.documents.schemas import (
     DocumentResponse,
     DocumentUploadRequest,
     DocumentUpdate,
+    DocumentVersionListResponse,
 )
 from app.services import document_service
+from app.services.ask import invalidate_context_cache
 from app.services.documents.exceptions import (
     DocumentAccessDeniedError,
     DocumentCategoryNotFoundError,
+    DocumentDuplicateError,
     DocumentNotFoundError,
 )
 
@@ -227,6 +230,32 @@ async def search_document_chunks(
 
 
 @router.get(
+    "/{document_id}/versions",
+    response_model=DocumentVersionListResponse,
+    summary="List document versions",
+    description="Return immutable version snapshots for one document.",
+)
+async def list_document_versions(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DocumentVersionListResponse:
+    """Return version history for one readable document."""
+
+    try:
+        return await document_service.list_document_versions(
+            db=db,
+            document_id=document_id,
+            current_user_id=current_user.id,
+            is_admin=current_user.role == USER_ROLE_ADMIN,
+        )
+    except DocumentNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except DocumentAccessDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+
+
+@router.get(
     "/{document_id}",
     response_model=DocumentResponse,
     summary="Get one document",
@@ -281,6 +310,7 @@ async def upload_document_as_admin(
             document.id,
             current_admin.id,
         )
+        invalidate_context_cache()
         return document
     except DocumentCategoryNotFoundError as exc:
         cleanup_saved_upload(payload.file_path)
@@ -288,6 +318,9 @@ async def upload_document_as_admin(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
         ) from exc
+    except DocumentDuplicateError as exc:
+        cleanup_saved_upload(payload.file_path)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     except Exception:
         cleanup_saved_upload(payload.file_path)
         raise
@@ -322,6 +355,7 @@ async def update_document(
         file_name=create_payload.file_name,
         file_path=create_payload.file_path,
         file_type=create_payload.file_type,
+        content_checksum=create_payload.content_checksum,
     )
 
     new_file_path = payload.file_path
@@ -347,6 +381,7 @@ async def update_document(
             updated_document.id,
             current_user.id,
         )
+        invalidate_context_cache()
         return updated_document
     except DocumentNotFoundError as exc:
         cleanup_saved_upload(new_file_path)
@@ -361,44 +396,75 @@ async def update_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
         ) from exc
+    except DocumentDuplicateError as exc:
+        cleanup_saved_upload(new_file_path)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     except Exception:
         cleanup_saved_upload(new_file_path)
         raise
 
 
+@router.patch(
+    "/{document_id}/restore",
+    response_model=DocumentResponse,
+    summary="Restore a soft-deleted document",
+    description="Restore one soft-deleted document by id.",
+)
+async def restore_document(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DocumentResponse:
+    """Restore a soft-deleted document after permission checks."""
+
+    try:
+        restored_document = await document_service.restore_document(
+            db=db,
+            document_id=document_id,
+            current_user_id=current_user.id,
+            is_admin=current_user.role == USER_ROLE_ADMIN,
+        )
+        logger.info(
+            "event=document.restored document_id=%s user_id=%s",
+            restored_document.id,
+            current_user.id,
+        )
+        invalidate_context_cache()
+        return restored_document
+    except DocumentNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except DocumentAccessDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except DocumentDuplicateError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+
+
 @router.delete(
     "/{document_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a document",
-    description="Delete one document by id.",
+    summary="Soft-delete a document",
+    description="Soft-delete one document by id.",
 )
 async def delete_document(
     document_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Response:
-    """Delete a document and return an empty 204 response."""
+    """Soft-delete a document and return an empty 204 response."""
 
     try:
-        document = await document_service.get_document(
-            db=db,
-            document_id=document_id,
-            current_user_id=current_user.id,
-            is_admin=current_user.role == USER_ROLE_ADMIN,
-        )
-        # The service checks existence before deleting so missing IDs return 404.
         await document_service.delete_document(
             db=db,
             document_id=document_id,
             current_user_id=current_user.id,
             is_admin=current_user.role == USER_ROLE_ADMIN,
         )
-        cleanup_saved_upload(document.file_path)
         logger.info(
-            "event=document.deleted document_id=%s user_id=%s",
+            "event=document.soft_deleted document_id=%s user_id=%s",
             document_id,
             current_user.id,
         )
+        invalidate_context_cache()
     except DocumentNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     except DocumentAccessDeniedError as exc:

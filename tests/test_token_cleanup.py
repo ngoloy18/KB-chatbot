@@ -53,6 +53,14 @@ async def check_token_cleanup() -> None:
                 created_at=old_time,
                 updated_at=old_time,
             )
+            recently_expired_token = EmailVerificationToken(
+                user_id=user.id,
+                token_hash=f"{uuid4().hex}{uuid4().hex}",
+                expires_at=now - timedelta(minutes=1),
+                is_used=False,
+                created_at=now,
+                updated_at=now,
+            )
             active_token = EmailVerificationToken(
                 user_id=user.id,
                 token_hash=f"{uuid4().hex}{uuid4().hex}",
@@ -61,7 +69,14 @@ async def check_token_cleanup() -> None:
                 created_at=old_time,
                 updated_at=old_time,
             )
-            db.add_all([old_used_token, old_expired_token, active_token])
+            db.add_all(
+                [
+                    old_used_token,
+                    old_expired_token,
+                    recently_expired_token,
+                    active_token,
+                ]
+            )
             old_used_reset_token = PasswordResetToken(
                 user_id=user.id,
                 token_hash=f"{uuid4().hex}{uuid4().hex}",
@@ -79,6 +94,14 @@ async def check_token_cleanup() -> None:
                 created_at=old_time,
                 updated_at=old_time,
             )
+            recently_expired_reset_token = PasswordResetToken(
+                user_id=user.id,
+                token_hash=f"{uuid4().hex}{uuid4().hex}",
+                expires_at=now - timedelta(minutes=1),
+                is_used=False,
+                created_at=now,
+                updated_at=now,
+            )
             active_reset_token = PasswordResetToken(
                 user_id=user.id,
                 token_hash=f"{uuid4().hex}{uuid4().hex}",
@@ -88,7 +111,12 @@ async def check_token_cleanup() -> None:
                 updated_at=old_time,
             )
             db.add_all(
-                [old_used_reset_token, old_expired_reset_token, active_reset_token]
+                [
+                    old_used_reset_token,
+                    old_expired_reset_token,
+                    recently_expired_reset_token,
+                    active_reset_token,
+                ]
             )
             await db.commit()
 
@@ -96,8 +124,8 @@ async def check_token_cleanup() -> None:
                 db,
                 older_than,
             )
-            if deleted_count != 2:
-                raise AssertionError(f"Expected 2 deleted tokens, got {deleted_count}.")
+            if deleted_count != 3:
+                raise AssertionError(f"Expected 3 deleted tokens, got {deleted_count}.")
 
             remaining_tokens = await db.scalars(
                 select(EmailVerificationToken).where(
@@ -111,6 +139,8 @@ async def check_token_cleanup() -> None:
                 raise AssertionError("Cleanup should delete old used tokens.")
             if old_expired_token.token_hash in remaining_hashes:
                 raise AssertionError("Cleanup should delete old expired tokens.")
+            if recently_expired_token.token_hash in remaining_hashes:
+                raise AssertionError("Cleanup should delete recently expired tokens.")
 
             deleted_reset_count = (
                 await password_reset_token_repository.delete_old_tokens(
@@ -118,9 +148,9 @@ async def check_token_cleanup() -> None:
                     older_than,
                 )
             )
-            if deleted_reset_count != 2:
+            if deleted_reset_count != 3:
                 raise AssertionError(
-                    f"Expected 2 deleted reset tokens, got {deleted_reset_count}."
+                    f"Expected 3 deleted reset tokens, got {deleted_reset_count}."
                 )
 
             remaining_reset_tokens = await db.scalars(
@@ -135,6 +165,10 @@ async def check_token_cleanup() -> None:
                 raise AssertionError("Cleanup should delete old used reset tokens.")
             if old_expired_reset_token.token_hash in remaining_reset_hashes:
                 raise AssertionError("Cleanup should delete old expired reset tokens.")
+            if recently_expired_reset_token.token_hash in remaining_reset_hashes:
+                raise AssertionError(
+                    "Cleanup should delete recently expired reset tokens."
+                )
         finally:
             await db.execute(delete(User).where(User.email == email))
             await db.commit()

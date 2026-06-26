@@ -35,6 +35,12 @@ class Settings:
             "FastAPI with SQLAlchemy, JWT auth, and protected uploads.",
         )
 
+        # AI provider settings keep model/provider choices outside application code.
+        self.ai_provider = os.getenv("AI_PROVIDER", "").strip().lower()
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip()
+        self.gemini_model = os.getenv("GEMINI_MODEL", "").strip()
+        self.chat_history_limit = int(os.getenv("CHAT_HISTORY_LIMIT", "12"))
+
         # Database settings keep local, Docker, and production values out of code.
         self.database_url = os.getenv("DATABASE_URL", "")
         self.database_echo = os.getenv("DATABASE_ECHO", "false").lower() == "true"

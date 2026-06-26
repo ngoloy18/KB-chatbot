@@ -9,6 +9,7 @@ from app.constants.database import SCHEMA_NAME
 from app.models.documents.categories import DocumentCategoryModel
 from app.models.auth.users import User
 from app.models.documents.documents import Document
+from app.models.documents.versions import DocumentVersion
 from app.models.documents.chunks import DocumentChunk
 from app.models.documents.permissions import DocumentPermission
 from app.models.chat.sessions import ChatSession
@@ -27,6 +28,7 @@ __all__ = [
     "DocumentCategoryModel",
     "DocumentChunk",
     "DocumentPermission",
+    "DocumentVersion",
     "EmailVerificationToken",
     "MessageSource",
     "PasswordResetToken",
