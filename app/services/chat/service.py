@@ -16,7 +16,7 @@ from app.schemas.chat.schemas import (
     chat_message_to_response,
     chat_session_to_response,
 )
-from app.services.ai import AIProvider, AIProviderError, AIResponse
+from app.services.ai import AIProviderError, call_chat_with_usage
 from app.services.ai.factory import create_ai_provider
 from app.services.ask.constants import NOT_AVAILABLE_ANSWER
 from app.services.chat.exceptions import ChatSessionNotFoundError
@@ -106,7 +106,7 @@ class ChatService:
             question=question,
         )
         try:
-            ai_response = await self._chat_with_usage(
+            ai_response = await call_chat_with_usage(
                 provider=provider,
                 system=SYSTEM_PROMPT,
                 user=user_prompt,
@@ -161,20 +161,6 @@ class ChatService:
             sources=document_context.source_names,
             model_used=provider.model_name,
         )
-
-    @staticmethod
-    async def _chat_with_usage(
-        provider: AIProvider,
-        system: str,
-        user: str,
-    ) -> AIResponse:
-        """Call providers with token usage when available, otherwise plain text."""
-
-        chat_with_usage = getattr(provider, "chat_with_usage", None)
-        if callable(chat_with_usage):
-            return await chat_with_usage(system=system, user=user)
-        answer = await provider.chat(system=system, user=user)
-        return AIResponse(text=answer)
 
     async def list_sessions(
         self,

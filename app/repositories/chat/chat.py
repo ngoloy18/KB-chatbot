@@ -165,22 +165,6 @@ class ChatRepository:
         await db.refresh(run)
         return run
 
-    async def create_message_sources(
-        self,
-        db: AsyncSession,
-        message_id: UUID,
-        document_ids: list[UUID],
-    ) -> list[MessageSource]:
-        """Attach source document citations to an assistant message."""
-
-        sources = [
-            MessageSource(message_id=message_id, document_id=document_id)
-            for document_id in document_ids
-        ]
-        db.add_all(sources)
-        await db.commit()
-        return sources
-
     async def create_chunk_message_sources(
         self,
         db: AsyncSession,

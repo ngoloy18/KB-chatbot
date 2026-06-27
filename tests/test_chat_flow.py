@@ -26,7 +26,6 @@ from app.schemas.documents.schemas import (
 )
 from app.services import document_service
 from app.services.ai import AIProviderError, AIResponse
-from app.services.ask import invalidate_context_cache
 from app.services.ask.constants import NOT_AVAILABLE_ANSWER
 from app.services.chat import chat_service
 
@@ -126,7 +125,6 @@ async def grant_read(db, document: Document, user: User) -> None:
             permission=DocumentPermissionValue(DOCUMENT_PERMISSION_READ),
         ),
     )
-    invalidate_context_cache()
 
 
 def use_stub_provider(provider: StubAIProvider):
@@ -290,12 +288,10 @@ async def check_chat_flow() -> None:
             settings.rag_min_similarity = original_rag_min_similarity
             settings.rag_top_k = original_rag_top_k
             settings.rag_max_context_tokens = original_rag_max_context_tokens
-            invalidate_context_cache()
             await db.rollback()
             await db.execute(delete(Document).where(Document.title.in_(document_names)))
             await db.execute(delete(User).where(User.email.in_(user_emails)))
             await db.commit()
-            invalidate_context_cache()
 
     print("Chat flow OK.")
 

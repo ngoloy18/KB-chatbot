@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.prompts import SYSTEM_PROMPT
 from app.schemas.ask.schemas import AskResponse
-from app.services.ai import AIProvider, AIResponse
+from app.services.ai import call_chat_with_usage
 from app.services.ai.factory import create_ai_provider
 from app.services.ask.constants import NOT_AVAILABLE_ANSWER
 from app.services.chat.retrieval import retrieve_chat_context
@@ -37,7 +37,7 @@ class AskService:
             )
 
         user_prompt = self._build_user_prompt(document_context.content, question)
-        ai_response = await self._chat_with_usage(
+        ai_response = await call_chat_with_usage(
             provider=provider,
             system=SYSTEM_PROMPT,
             user=user_prompt,
@@ -58,17 +58,3 @@ class AskService:
             "USER QUESTION:\n"
             f"{question.strip()}"
         )
-
-    @staticmethod
-    async def _chat_with_usage(
-        provider: AIProvider,
-        system: str,
-        user: str,
-    ) -> AIResponse:
-        """Use usage-aware providers while keeping older provider stubs supported."""
-
-        chat_with_usage = getattr(provider, "chat_with_usage", None)
-        if callable(chat_with_usage):
-            return await chat_with_usage(system=system, user=user)
-        answer = await provider.chat(system=system, user=user)
-        return AIResponse(text=answer)

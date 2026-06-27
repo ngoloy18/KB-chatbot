@@ -34,6 +34,20 @@ class AIProvider(Protocol):
         """Return one assistant response with token usage when the provider exposes it."""
 
 
+async def call_chat_with_usage(
+    provider: AIProvider,
+    system: str,
+    user: str,
+) -> AIResponse:
+    """Call a provider with usage metadata when available, otherwise plain text."""
+
+    chat_with_usage = getattr(provider, "chat_with_usage", None)
+    if callable(chat_with_usage):
+        return await chat_with_usage(system=system, user=user)
+    answer = await provider.chat(system=system, user=user)
+    return AIResponse(text=answer)
+
+
 @dataclass(frozen=True)
 class EmbeddingDocument:
     """Text chunk metadata used to generate retrieval document embeddings."""

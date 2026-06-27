@@ -71,4 +71,3 @@ app.include_router(api_router)
 # Keep a root /ask alias for the Week 4 contract while /api/ask remains the
 # preferred API-grouped route used by the rest of the app.
 app.include_router(ask_router)
-app.include_router(chat_router)

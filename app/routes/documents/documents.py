@@ -34,7 +34,6 @@ from app.schemas.documents.schemas import (
 )
 from app.services import document_service
 from app.services.ai import AIProviderConfigurationError, AIProviderError
-from app.services.ask import invalidate_context_cache
 from app.services.audit import audit_service
 from app.services.documents.exceptions import (
     DocumentAccessDeniedError,
@@ -324,7 +323,6 @@ async def upload_document_as_admin(
                 "file_name": document.file_name,
             },
         )
-        invalidate_context_cache()
         return document
     except DocumentCategoryNotFoundError as exc:
         cleanup_saved_upload(payload.file_path)
@@ -419,7 +417,6 @@ async def update_document(
                 "file_name": updated_document.file_name,
             },
         )
-        invalidate_context_cache()
         return updated_document
     except DocumentNotFoundError as exc:
         cleanup_saved_upload(new_file_path)
@@ -490,7 +487,6 @@ async def restore_document(
                 "category": restored_document.category.value,
             },
         )
-        invalidate_context_cache()
         return restored_document
     except DocumentNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
@@ -532,7 +528,6 @@ async def delete_document(
             resource_type="document",
             resource_id=document_id,
         )
-        invalidate_context_cache()
     except DocumentNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     except DocumentAccessDeniedError as exc:
