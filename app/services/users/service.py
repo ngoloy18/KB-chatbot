@@ -2,6 +2,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.auth import USER_ROLE_ADMIN
 from app.core.security import hash_password
 from app.repositories.auth.email_verification_tokens import (
     email_verification_token_repository,
@@ -15,7 +16,11 @@ from app.schemas.users.schemas import (
     UserUpdateRequest,
 )
 from app.services.auth.exceptions import DuplicateEmailError
-from app.services.users.exceptions import CannotDeleteSelfError, UserNotFoundError
+from app.services.users.exceptions import (
+    CannotDeleteSelfError,
+    CannotRemoveLastAdminError,
+    UserNotFoundError,
+)
 
 
 class UserService:
@@ -56,6 +61,15 @@ class UserService:
         user = await user_repository.get_by_id(db, user_id)
         if user is None:
             raise UserNotFoundError("User not found.")
+
+        if (
+            user.role == USER_ROLE_ADMIN
+            and (
+                (payload.role is not None and payload.role != USER_ROLE_ADMIN)
+                or payload.is_active is False
+            )
+        ):
+            await self._raise_if_last_active_admin(db, user.id)
 
         if payload.email is not None and payload.email != user.email:
             # Email is a unique login identifier, so updates must also reject duplicates.
@@ -106,6 +120,8 @@ class UserService:
         user = await user_repository.get_by_id(db, user_id)
         if user is None:
             raise UserNotFoundError("User not found.")
+        if user.role == USER_ROLE_ADMIN and user.is_active:
+            await self._raise_if_last_active_admin(db, user.id)
         await user_repository.delete_user(db, user)
 
     async def soft_delete_user(
@@ -122,6 +138,8 @@ class UserService:
         user = await user_repository.get_by_id(db, user_id)
         if user is None:
             raise UserNotFoundError("User not found.")
+        if user.role == USER_ROLE_ADMIN and user.is_active:
+            await self._raise_if_last_active_admin(db, user.id)
 
         # Soft delete means the account remains in the database but cannot login.
         user.is_active = False
@@ -131,6 +149,22 @@ class UserService:
         await db.commit()
         await db.refresh(user)
         return UserAdminResponse.model_validate(user)
+
+    async def _raise_if_last_active_admin(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+    ) -> None:
+        """Block actions that would leave the system with no active admins."""
+
+        remaining_admins = await user_repository.count_active_admins(
+            db,
+            exclude_user_id=user_id,
+        )
+        if remaining_admins == 0:
+            raise CannotRemoveLastAdminError(
+                "Cannot remove the final active admin account."
+            )
 
     async def restore_user(
         self,

@@ -12,6 +12,7 @@ from app.schemas.documents.schemas import (
 )
 from app.services import document_service
 from app.services.ask import invalidate_context_cache
+from app.services.audit import audit_service
 from app.services.documents.exceptions import (
     DocumentNotFoundError,
     DocumentPermissionNotFoundError,
@@ -60,6 +61,17 @@ async def grant_document_permission(
             document_id,
             payload,
         )
+        await audit_service.safe_record(
+            db=db,
+            action="document.permission_granted",
+            actor_user_id=current_admin.id,
+            resource_type="document",
+            resource_id=document_id,
+            details={
+                "target_user_id": str(payload.user_id),
+                "permission": permission.permission.value,
+            },
+        )
         invalidate_context_cache()
         return permission
     except DocumentNotFoundError as exc:
@@ -83,6 +95,14 @@ async def revoke_document_permission(
 
     try:
         await document_service.revoke_document_permission(db, document_id, user_id)
+        await audit_service.safe_record(
+            db=db,
+            action="document.permission_revoked",
+            actor_user_id=current_admin.id,
+            resource_type="document",
+            resource_id=document_id,
+            details={"target_user_id": str(user_id)},
+        )
         invalidate_context_cache()
     except DocumentNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))

@@ -320,6 +320,10 @@ class DocumentRepository:
     ) -> list[DocumentChunkMatch]:
         """Return top readable chunks using PostgreSQL pgvector cosine distance."""
 
+        distance_expression, embedding_cast = await _build_vector_distance_sql(
+            db,
+            len(query_embedding),
+        )
         permission_clause = ""
         params: dict[str, object] = {
             "embedding": _serialize_embedding(query_embedding),
@@ -346,7 +350,7 @@ class DocumentRepository:
             f"""
             SELECT
                 c.id AS chunk_id,
-                1 - (c.embedding_vector <=> CAST(:embedding AS vector)) AS similarity_score
+                1 - ({distance_expression} <=> {embedding_cast}) AS similarity_score
             FROM {SCHEMA_NAME}.document_chunks AS c
             JOIN {SCHEMA_NAME}.documents AS d ON d.id = c.document_id
             WHERE c.embedding_vector IS NOT NULL
@@ -355,8 +359,8 @@ class DocumentRepository:
               AND d.status = 'ready'
               AND d.is_deleted IS FALSE
               {permission_clause}
-              AND 1 - (c.embedding_vector <=> CAST(:embedding AS vector)) >= :min_similarity
-            ORDER BY c.embedding_vector <=> CAST(:embedding AS vector) ASC
+              AND 1 - ({distance_expression} <=> {embedding_cast}) >= :min_similarity
+            ORDER BY {distance_expression} <=> {embedding_cast} ASC
             LIMIT :top_k
             """
         )
@@ -702,6 +706,37 @@ async def _embedding_vector_column_exists(db: AsyncSession) -> bool:
         {"schema_name": SCHEMA_NAME},
     )
     return bool(exists)
+
+
+async def _halfvec_type_exists(db: AsyncSession) -> bool:
+    """Return whether this pgvector installation supports halfvec indexes."""
+
+    exists = await db.scalar(
+        text(
+            """
+            SELECT count(1)
+            FROM pg_type
+            WHERE typname = 'halfvec'
+            """
+        )
+    )
+    return bool(exists)
+
+
+async def _build_vector_distance_sql(
+    db: AsyncSession,
+    embedding_dimensions: int,
+) -> tuple[str, str]:
+    """Return the distance expression that can use the best pgvector index."""
+
+    if embedding_dimensions > 2000 and await _halfvec_type_exists(db):
+        # pgvector HNSW supports vector up to 2000 dims, while halfvec supports
+        # larger Gemini embeddings. Keep this dynamic so models can change.
+        return (
+            f"c.embedding_vector::halfvec({embedding_dimensions})",
+            f"CAST(:embedding AS halfvec({embedding_dimensions}))",
+        )
+    return "c.embedding_vector", "CAST(:embedding AS vector)"
 
 
 async def _sync_document_chunk_vectors(

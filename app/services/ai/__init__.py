@@ -2,6 +2,7 @@ from app.services.ai.base import (
     AIProvider,
     AIProviderConfigurationError,
     AIProviderError,
+    AIResponse,
     EmbeddingDocument,
     EmbeddingProvider,
 )
@@ -13,6 +14,7 @@ __all__ = [
     "AIProvider",
     "AIProviderConfigurationError",
     "AIProviderError",
+    "AIResponse",
     "EmbeddingDocument",
     "EmbeddingProvider",
     "GeminiEmbeddingService",

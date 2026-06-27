@@ -16,6 +16,9 @@ def create_ai_provider() -> AIProvider:
         return GeminiService(
             api_key=settings.gemini_api_key,
             model=settings.gemini_model,
+            timeout_seconds=settings.ai_timeout_seconds,
+            max_retries=settings.ai_max_retries,
+            retry_delay_seconds=settings.ai_retry_delay_seconds,
         )
     raise AIProviderConfigurationError(
         f"Unsupported AI_PROVIDER '{settings.ai_provider}'."
@@ -31,6 +34,9 @@ def create_embedding_provider() -> EmbeddingProvider:
         return GeminiEmbeddingService(
             api_key=settings.gemini_api_key,
             model=settings.gemini_embedding_model,
+            timeout_seconds=settings.ai_timeout_seconds,
+            max_retries=settings.ai_max_retries,
+            retry_delay_seconds=settings.ai_retry_delay_seconds,
         )
     raise AIProviderConfigurationError(
         f"Unsupported EMBEDDING_PROVIDER '{settings.embedding_provider}'."

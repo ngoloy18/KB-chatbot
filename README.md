@@ -36,12 +36,13 @@ The project tables live in the PostgreSQL schema:
 kb
 ```
 
-The database currently uses these 13 tables:
+The database currently uses these 14 tables:
 
 ```text
 kb.users
 kb.email_verification_tokens
 kb.password_reset_tokens
+kb.audit_logs
 kb.document_categories
 kb.documents
 kb.document_chunks
@@ -75,10 +76,14 @@ APP_DESCRIPTION=FastAPI with SQLAlchemy, JWT auth, and protected uploads.
 AI_PROVIDER=gemini
 GEMINI_API_KEY=your_gemini_api_key
 GEMINI_MODEL=your_flash_model_from_ai_studio
+AI_TIMEOUT_SECONDS=30
+AI_MAX_RETRIES=2
+AI_RETRY_DELAY_SECONDS=1
 CHAT_HISTORY_LIMIT=12
 EMBEDDINGS_ENABLED=false
 EMBEDDING_PROVIDER=gemini
 GEMINI_EMBEDDING_MODEL=your_embedding_model_from_ai_studio
+EMBEDDING_DIMENSIONS=0
 RAG_TOP_K=5
 RAG_MAX_CONTEXT_TOKENS=1800
 RAG_MIN_SIMILARITY=0
@@ -140,13 +145,18 @@ document upload.
 model available in your AI Studio project instead of hard-coding a model name in
 the app.
 
+`AI_TIMEOUT_SECONDS`, `AI_MAX_RETRIES`, and `AI_RETRY_DELAY_SECONDS` bound
+external AI calls so slow provider responses do not hang the API indefinitely.
+
 `CHAT_HISTORY_LIMIT` controls how many previous messages are sent with each
 multi-turn chat request.
 
 `EMBEDDINGS_ENABLED=true` makes document upload/update generate chunk
 embeddings and makes `/api/chat` retrieve top matching chunks before calling the
 chat model. `GEMINI_EMBEDDING_MODEL` should be set from AI Studio; the app does
-not hard-code an embedding model. `RAG_TOP_K`, `RAG_MAX_CONTEXT_TOKENS`, and
+not hard-code an embedding model. `EMBEDDING_DIMENSIONS=0` means infer the
+dimension from stored embeddings; set it only when you intentionally request a
+specific embedding output size. `RAG_TOP_K`, `RAG_MAX_CONTEXT_TOKENS`, and
 `RAG_MIN_SIMILARITY` control retrieval size and filtering.
 
 The `0008` migration stores embeddings and tries to enable PostgreSQL `vector`
@@ -154,6 +164,10 @@ support when the server has pgvector installed. If your local PostgreSQL does
 not include pgvector, semantic retrieval still works with exact cosine scoring
 over stored embeddings, but pgvector indexing/acceleration is not available
 until the server extension is installed.
+
+The `0009` migration adds an HNSW pgvector index. For high-dimensional Gemini
+embeddings such as 3072 dimensions, the app uses pgvector `halfvec` indexing
+because normal `vector` HNSW indexes support only lower-dimensional vectors.
 
 Existing chunks do not receive embeddings just because the migration runs. After
 configuring `GEMINI_EMBEDDING_MODEL`, backfill current chunks manually:
@@ -231,7 +245,7 @@ Expected success output:
 
 ```text
 Database connection OK: connected to 'chatbot_db'.
-Schema OK: found kb schema and all 13 expected tables.
+Schema OK: found kb schema and all 14 expected tables.
 Categories OK: found all 6 document categories.
 ```
 
@@ -295,6 +309,7 @@ app/
   dependencies/   FastAPI dependencies such as current-user/admin checks
   db/             SQLAlchemy engine, session, and Base
   models/
+    audit/        append-only audit log ORM model
     auth/         user, verification-token, and refresh-token ORM models
     chat/         chat/session/message/source/AI run ORM models
     common/       shared ORM mixins
@@ -321,6 +336,7 @@ app/
   services/
     ai/           configurable AI provider implementations
     ask/          long-context document Q&A context and service
+    audit/        append-only audit event persistence
     auth/         auth business logic and email sender
     chat/         multi-turn chat business logic
     documents/    document business logic
@@ -343,8 +359,8 @@ Repositories contain SQLAlchemy queries and database commits.
 ## Endpoints
 
 - `GET /api/health` checks whether the API process is running.
-- `POST /api/ask` answers a question from the cached engineering standards document context.
-- `POST /ask` is a root alias for the same document Q&A flow.
+- `POST /api/ask` answers a question from documents the authenticated user can read.
+- `POST /ask` is a root alias for the same authenticated document Q&A flow.
 - `POST /api/chat` creates or continues an authenticated multi-turn chat session.
 - `GET /api/chat/sessions` lists only the authenticated user's chat sessions.
 - `GET /api/chat/sessions/{session_id}` returns only a session owned by the authenticated user.

@@ -15,6 +15,7 @@ from app.db.session import engine
 
 EXPECTED_TABLES = {
     "ai_runs",
+    "audit_logs",
     "chat_messages",
     "chat_sessions",
     "document_categories",
@@ -99,7 +100,7 @@ async def check_database_connection() -> None:
             )
 
     print(f"Database connection OK: connected to '{database_name}'.")
-    print(f"Schema OK: found {SCHEMA_NAME} schema and all 13 expected tables.")
+    print(f"Schema OK: found {SCHEMA_NAME} schema and all 14 expected tables.")
     print("Categories OK: found all 6 document categories.")
 
 

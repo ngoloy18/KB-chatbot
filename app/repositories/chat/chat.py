@@ -143,6 +143,9 @@ class ChatRepository:
         assistant_message_id: UUID | None,
         status: str,
         error_message: str | None = None,
+        prompt_tokens: int = 0,
+        completion_tokens: int = 0,
+        total_tokens: int = 0,
     ) -> AIRun:
         """Record metadata for one AI provider call."""
 
@@ -153,6 +156,9 @@ class ChatRepository:
             assistant_message_id=assistant_message_id,
             status=status,
             error_message=error_message,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
         )
         db.add(run)
         await db.commit()

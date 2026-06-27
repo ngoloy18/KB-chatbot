@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.auth import USER_ROLE_USER
+from app.constants.auth import USER_ROLE_ADMIN, USER_ROLE_USER
 from app.models.database import Document, User
 
 
@@ -61,6 +61,24 @@ class UserRepository:
         # commit writes the INSERT to PostgreSQL.
         await db.commit()
         return user
+
+    async def count_active_admins(
+        self,
+        db: AsyncSession,
+        exclude_user_id: UUID | None = None,
+    ) -> int:
+        """Return active admin count, optionally excluding one user."""
+
+        filters = [
+            User.role == USER_ROLE_ADMIN,
+            User.is_active.is_(True),
+        ]
+        if exclude_user_id is not None:
+            filters.append(User.id != exclude_user_id)
+        count = await db.scalar(
+            select(func.count()).select_from(User).where(*filters)
+        )
+        return count or 0
 
     async def delete_user(self, db: AsyncSession, user: User) -> None:
         """Delete one user row."""

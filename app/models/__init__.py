@@ -1,5 +1,6 @@
 from app.models.database import (
     AIRun,
+    AuditLog,
     ChatMessage,
     ChatSession,
     Document,
@@ -13,6 +14,7 @@ from app.models.database import (
 
 __all__ = [
     "AIRun",
+    "AuditLog",
     "ChatMessage",
     "ChatSession",
     "Document",

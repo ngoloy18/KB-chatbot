@@ -39,6 +39,9 @@ class Settings:
         self.ai_provider = os.getenv("AI_PROVIDER", "").strip().lower()
         self.gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip()
         self.gemini_model = os.getenv("GEMINI_MODEL", "").strip()
+        self.ai_timeout_seconds = float(os.getenv("AI_TIMEOUT_SECONDS", "30"))
+        self.ai_max_retries = int(os.getenv("AI_MAX_RETRIES", "2"))
+        self.ai_retry_delay_seconds = float(os.getenv("AI_RETRY_DELAY_SECONDS", "1"))
         self.chat_history_limit = int(os.getenv("CHAT_HISTORY_LIMIT", "12"))
         self.embeddings_enabled = (
             os.getenv("EMBEDDINGS_ENABLED", "false").lower() == "true"
@@ -47,6 +50,7 @@ class Settings:
             os.getenv("EMBEDDING_PROVIDER", self.ai_provider).strip().lower()
         )
         self.gemini_embedding_model = os.getenv("GEMINI_EMBEDDING_MODEL", "").strip()
+        self.embedding_dimensions = int(os.getenv("EMBEDDING_DIMENSIONS", "0"))
         self.rag_top_k = int(os.getenv("RAG_TOP_K", "5"))
         self.rag_max_context_tokens = int(os.getenv("RAG_MAX_CONTEXT_TOKENS", "1800"))
         self.rag_min_similarity = float(os.getenv("RAG_MIN_SIMILARITY", "0"))

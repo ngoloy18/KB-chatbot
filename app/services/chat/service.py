@@ -16,9 +16,9 @@ from app.schemas.chat.schemas import (
     chat_message_to_response,
     chat_session_to_response,
 )
-from app.services.ai import AIProviderError
+from app.services.ai import AIProvider, AIProviderError, AIResponse
 from app.services.ai.factory import create_ai_provider
-from app.services.ask.service import NOT_AVAILABLE_ANSWER
+from app.services.ask.constants import NOT_AVAILABLE_ANSWER
 from app.services.chat.exceptions import ChatSessionNotFoundError
 from app.services.chat.retrieval import retrieve_chat_context
 
@@ -106,7 +106,11 @@ class ChatService:
             question=question,
         )
         try:
-            answer = await provider.chat(system=SYSTEM_PROMPT, user=user_prompt)
+            ai_response = await self._chat_with_usage(
+                provider=provider,
+                system=SYSTEM_PROMPT,
+                user=user_prompt,
+            )
         except AIProviderError as exc:
             await chat_repository.create_ai_run(
                 db=db,
@@ -119,6 +123,7 @@ class ChatService:
             )
             raise
 
+        answer = ai_response.text
         assistant_message = await chat_repository.create_message(
             db,
             session.id,
@@ -144,6 +149,9 @@ class ChatService:
             user_message_id=user_message.id,
             assistant_message_id=assistant_message.id,
             status=AI_RUN_STATUS_SUCCESS,
+            prompt_tokens=ai_response.prompt_tokens,
+            completion_tokens=ai_response.completion_tokens,
+            total_tokens=ai_response.total_tokens,
         )
         return ChatResponse(
             session_id=session.id,
@@ -153,6 +161,20 @@ class ChatService:
             sources=document_context.source_names,
             model_used=provider.model_name,
         )
+
+    @staticmethod
+    async def _chat_with_usage(
+        provider: AIProvider,
+        system: str,
+        user: str,
+    ) -> AIResponse:
+        """Call providers with token usage when available, otherwise plain text."""
+
+        chat_with_usage = getattr(provider, "chat_with_usage", None)
+        if callable(chat_with_usage):
+            return await chat_with_usage(system=system, user=user)
+        answer = await provider.chat(system=system, user=user)
+        return AIResponse(text=answer)
 
     async def list_sessions(
         self,

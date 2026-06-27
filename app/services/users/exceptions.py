@@ -4,3 +4,7 @@ class UserNotFoundError(ValueError):
 
 class CannotDeleteSelfError(ValueError):
     """Raised when an admin tries to delete their own account."""
+
+
+class CannotRemoveLastAdminError(ValueError):
+    """Raised when an action would remove the final active admin account."""

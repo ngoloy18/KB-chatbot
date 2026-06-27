@@ -16,12 +16,14 @@ from app.models.chat.sessions import ChatSession
 from app.models.chat.messages import ChatMessage
 from app.models.chat.message_sources import MessageSource
 from app.models.chat.ai_runs import AIRun
+from app.models.audit.logs import AuditLog
 from app.models.auth.email_verification_tokens import EmailVerificationToken
 from app.models.auth.password_reset_tokens import PasswordResetToken
 from app.models.auth.refresh_tokens import RefreshToken
 
 __all__ = [
     "AIRun",
+    "AuditLog",
     "ChatMessage",
     "ChatSession",
     "Document",

@@ -35,6 +35,7 @@ from app.schemas.documents.schemas import (
 from app.services import document_service
 from app.services.ai import AIProviderConfigurationError, AIProviderError
 from app.services.ask import invalidate_context_cache
+from app.services.audit import audit_service
 from app.services.documents.exceptions import (
     DocumentAccessDeniedError,
     DocumentCategoryNotFoundError,
@@ -311,6 +312,18 @@ async def upload_document_as_admin(
             document.id,
             current_admin.id,
         )
+        await audit_service.safe_record(
+            db=db,
+            action="document.upload_created",
+            actor_user_id=current_admin.id,
+            resource_type="document",
+            resource_id=document.id,
+            details={
+                "name": document.name,
+                "category": document.category.value,
+                "file_name": document.file_name,
+            },
+        )
         invalidate_context_cache()
         return document
     except DocumentCategoryNotFoundError as exc:
@@ -394,6 +407,18 @@ async def update_document(
             updated_document.id,
             current_user.id,
         )
+        await audit_service.safe_record(
+            db=db,
+            action="document.upload_replaced",
+            actor_user_id=current_user.id,
+            resource_type="document",
+            resource_id=updated_document.id,
+            details={
+                "name": updated_document.name,
+                "category": updated_document.category.value,
+                "file_name": updated_document.file_name,
+            },
+        )
         invalidate_context_cache()
         return updated_document
     except DocumentNotFoundError as exc:
@@ -454,6 +479,17 @@ async def restore_document(
             restored_document.id,
             current_user.id,
         )
+        await audit_service.safe_record(
+            db=db,
+            action="document.restored",
+            actor_user_id=current_user.id,
+            resource_type="document",
+            resource_id=restored_document.id,
+            details={
+                "name": restored_document.name,
+                "category": restored_document.category.value,
+            },
+        )
         invalidate_context_cache()
         return restored_document
     except DocumentNotFoundError as exc:
@@ -488,6 +524,13 @@ async def delete_document(
             "event=document.soft_deleted document_id=%s user_id=%s",
             document_id,
             current_user.id,
+        )
+        await audit_service.safe_record(
+            db=db,
+            action="document.soft_deleted",
+            actor_user_id=current_user.id,
+            resource_type="document",
+            resource_id=document_id,
         )
         invalidate_context_cache()
     except DocumentNotFoundError as exc:

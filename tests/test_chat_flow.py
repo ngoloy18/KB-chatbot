@@ -25,26 +25,43 @@ from app.schemas.documents.schemas import (
     DocumentPermissionValue,
 )
 from app.services import document_service
-from app.services.ai import AIProviderError
+from app.services.ai import AIProviderError, AIResponse
 from app.services.ask import invalidate_context_cache
-from app.services.ask.service import NOT_AVAILABLE_ANSWER
+from app.services.ask.constants import NOT_AVAILABLE_ANSWER
 from app.services.chat import chat_service
 
 
 class StubAIProvider:
     """Small in-memory provider so tests do not call external AI services."""
 
-    def __init__(self, answer: str = "stub answer", should_fail: bool = False) -> None:
+    def __init__(
+        self,
+        answer: str = "stub answer",
+        should_fail: bool = False,
+        prompt_tokens: int = 11,
+        completion_tokens: int = 7,
+    ) -> None:
         self.model_name = "stub-test-model"
         self.answer = answer
         self.should_fail = should_fail
+        self.prompt_tokens = prompt_tokens
+        self.completion_tokens = completion_tokens
         self.prompts: list[str] = []
 
     async def chat(self, system: str, user: str) -> str:
+        response = await self.chat_with_usage(system=system, user=user)
+        return response.text
+
+    async def chat_with_usage(self, system: str, user: str) -> AIResponse:
         self.prompts.append(user)
         if self.should_fail:
             raise AIProviderError("stub provider failed")
-        return self.answer
+        return AIResponse(
+            text=self.answer,
+            prompt_tokens=self.prompt_tokens,
+            completion_tokens=self.completion_tokens,
+            total_tokens=self.prompt_tokens + self.completion_tokens,
+        )
 
 
 class StubEmbeddingProvider:
@@ -61,10 +78,13 @@ class StubEmbeddingProvider:
 
     @staticmethod
     def _vector_for_text(text: str) -> list[float]:
+        vector = [0.0] * 3072
         lowered_text = text.lower()
         if "denied" in lowered_text:
-            return [0.0, 1.0, 0.0]
-        return [1.0, 0.0, 0.0]
+            vector[1] = 1.0
+            return vector
+        vector[0] = 1.0
+        return vector
 
 
 async def create_test_user(db, email: str) -> User:
@@ -194,6 +214,13 @@ async def check_chat_flow() -> None:
                 raise AssertionError("Chat should return the provider model name.")
             if allowed_doc.title not in happy_response.sources:
                 raise AssertionError("Chat should cite the visible source document.")
+            happy_run = await db.scalar(
+                select(AIRun).where(
+                    AIRun.assistant_message_id == happy_response.assistant_message_id
+                )
+            )
+            if happy_run is None or happy_run.total_tokens != 18:
+                raise AssertionError("Chat should record provider token usage.")
 
             no_docs_provider = StubAIProvider(answer="should not be called")
             chat_service_module.create_ai_provider = lambda: no_docs_provider

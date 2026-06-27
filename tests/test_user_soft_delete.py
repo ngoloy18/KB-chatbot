@@ -10,7 +10,7 @@ from sqlalchemy import delete, select
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.constants.auth import USER_ROLE_USER
+from app.constants.auth import USER_ROLE_ADMIN, USER_ROLE_USER
 from app.core.security import hash_password
 from app.db.session import AsyncSessionLocal
 from app.models.database import EmailVerificationToken, RefreshToken, User
@@ -19,6 +19,7 @@ from app.repositories.auth.email_verification_tokens import (
 )
 from app.repositories.auth.refresh_tokens import refresh_token_repository
 from app.repositories.users.users import user_repository
+from app.services.users.exceptions import CannotRemoveLastAdminError
 from app.services.users.service import user_service
 
 
@@ -26,6 +27,7 @@ async def check_user_soft_delete() -> None:
     """Verify soft delete deactivates a user without removing the row."""
 
     email = f"soft_delete_{uuid4().hex[:8]}@example.com"
+    admin_email = f"last_admin_{uuid4().hex[:8]}@example.com"
 
     async with AsyncSessionLocal() as db:
         try:
@@ -94,8 +96,35 @@ async def check_user_soft_delete() -> None:
                 raise AssertionError("Restore should keep the user row.")
             if not restored_user.is_active:
                 raise AssertionError("User row should be marked active after restore.")
+
+            admin_user = await user_repository.create_user(
+                db=db,
+                email=admin_email,
+                hashed_password=hash_password("Password123!"),
+                role=USER_ROLE_ADMIN,
+                is_email_verified=True,
+            )
+            original_count_active_admins = user_repository.count_active_admins
+
+            async def no_remaining_admins(*args, **kwargs) -> int:
+                return 0
+
+            user_repository.count_active_admins = no_remaining_admins
+            try:
+                try:
+                    await user_service.soft_delete_user(
+                        db=db,
+                        user_id=admin_user.id,
+                        current_admin_id=uuid4(),
+                    )
+                except CannotRemoveLastAdminError:
+                    pass
+                else:
+                    raise AssertionError("Soft delete should protect the last admin.")
+            finally:
+                user_repository.count_active_admins = original_count_active_admins
         finally:
-            await db.execute(delete(User).where(User.email == email))
+            await db.execute(delete(User).where(User.email.in_([email, admin_email])))
             await db.commit()
 
     print("User soft delete OK.")

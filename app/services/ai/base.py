@@ -1,5 +1,5 @@
-from typing import Protocol
 from dataclasses import dataclass
+from typing import Protocol
 
 
 class AIProviderError(Exception):
@@ -8,6 +8,16 @@ class AIProviderError(Exception):
 
 class AIProviderConfigurationError(AIProviderError):
     """Raised when the selected AI provider is not configured correctly."""
+
+
+@dataclass(frozen=True)
+class AIResponse:
+    """Normalized chat response plus provider usage metadata when available."""
+
+    text: str
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
 
 
 class AIProvider(Protocol):
@@ -19,6 +29,9 @@ class AIProvider(Protocol):
 
     async def chat(self, system: str, user: str) -> str:
         """Return one assistant response for a system instruction and user prompt."""
+
+    async def chat_with_usage(self, system: str, user: str) -> AIResponse:
+        """Return one assistant response with token usage when the provider exposes it."""
 
 
 @dataclass(frozen=True)
