@@ -5,7 +5,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import selectinload
 
 
@@ -13,6 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.constants.documents import DOCUMENT_STATUS_READY
+from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.models.database import Document, DocumentChunk
 from app.services.ai import EmbeddingDocument, create_embedding_provider
@@ -61,6 +62,20 @@ async def backfill_embeddings(limit: int | None = None) -> None:
             chunk.embedding_model = embedding_provider.model_name
             chunk.embedding_dimensions = len(embedding)
             chunk.embedded_at = datetime.now(UTC)
+            if await embedding_vector_column_exists(db):
+                await db.execute(
+                    text(
+                        f"""
+                        UPDATE {settings.database_schema}.document_chunks
+                        SET embedding_vector = CAST(:embedding AS vector)
+                        WHERE id = CAST(:chunk_id AS uuid)
+                        """
+                    ),
+                    {
+                        "embedding": serialize_embedding(embedding),
+                        "chunk_id": str(chunk.id),
+                    },
+                )
             updated += 1
             await db.commit()
 
@@ -82,6 +97,24 @@ def parse_args() -> argparse.Namespace:
         help="Maximum number of chunks to embed in this run.",
     )
     return parser.parse_args()
+
+
+async def embedding_vector_column_exists(db) -> bool:
+    """Return whether this database has the optional pgvector column."""
+
+    exists = await db.scalar(
+        text(
+            """
+            SELECT count(1)
+            FROM information_schema.columns
+            WHERE table_schema = :schema_name
+              AND table_name = 'document_chunks'
+              AND column_name = 'embedding_vector'
+            """
+        ),
+        {"schema_name": settings.database_schema},
+    )
+    return bool(exists)
 
 
 if __name__ == "__main__":

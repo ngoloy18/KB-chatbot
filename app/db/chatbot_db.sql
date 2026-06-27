@@ -238,6 +238,7 @@ CREATE TABLE IF NOT EXISTS kb.document_chunks
     embedding_provider character varying(50) COLLATE pg_catalog."default",
     embedding_model character varying(100) COLLATE pg_catalog."default",
     embedding_dimensions integer,
+    embedding_vector vector,
     embedded_at timestamp with time zone,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),

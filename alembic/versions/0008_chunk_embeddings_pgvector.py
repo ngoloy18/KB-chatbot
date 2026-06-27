@@ -68,6 +68,10 @@ def upgrade() -> None:
                 CREATE EXTENSION IF NOT EXISTS vector;
                 ALTER TABLE {SCHEMA}.document_chunks
                     ADD COLUMN IF NOT EXISTS embedding_vector vector;
+                UPDATE {SCHEMA}.document_chunks
+                SET embedding_vector = CAST(embedding AS vector)
+                WHERE embedding IS NOT NULL
+                  AND embedding_vector IS NULL;
             END IF;
         END
         $$;

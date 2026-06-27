@@ -5,11 +5,12 @@ import json
 import math
 from uuid import UUID
 
-from sqlalchemy import and_, delete, false, func, select
+from sqlalchemy import and_, delete, false, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.constants.documents import DOCUMENT_STATUS_READY
+from app.constants.database import SCHEMA_NAME
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.constants.permissions import DOCUMENT_READ_PERMISSIONS
 from app.core.config import DocumentCategory
@@ -244,6 +245,18 @@ class DocumentRepository:
     ) -> list[DocumentChunkMatch]:
         """Return top readable chunks ordered by pgvector cosine similarity."""
 
+        if await _embedding_vector_column_exists(db):
+            return await self._search_document_chunks_by_pgvector(
+                db=db,
+                query_embedding=query_embedding,
+                embedding_provider=embedding_provider,
+                embedding_model=embedding_model,
+                top_k=top_k,
+                min_similarity=min_similarity,
+                user_id=user_id,
+                include_all=include_all,
+            )
+
         filters = [
             DocumentChunk.embedding.is_not(None),
             DocumentChunk.embedding_provider == embedding_provider,
@@ -293,6 +306,90 @@ class DocumentRepository:
             )
         matches.sort(key=lambda match: match.similarity_score, reverse=True)
         return matches[:top_k]
+
+    async def _search_document_chunks_by_pgvector(
+        self,
+        db: AsyncSession,
+        query_embedding: list[float],
+        embedding_provider: str,
+        embedding_model: str,
+        top_k: int,
+        min_similarity: float = 0,
+        user_id: UUID | None = None,
+        include_all: bool = False,
+    ) -> list[DocumentChunkMatch]:
+        """Return top readable chunks using PostgreSQL pgvector cosine distance."""
+
+        permission_clause = ""
+        params: dict[str, object] = {
+            "embedding": _serialize_embedding(query_embedding),
+            "embedding_provider": embedding_provider,
+            "embedding_model": embedding_model,
+            "min_similarity": min_similarity,
+            "top_k": top_k,
+        }
+        if user_id is not None and not include_all:
+            permission_clause = f"""
+                AND EXISTS (
+                    SELECT 1
+                    FROM {SCHEMA_NAME}.document_permissions AS p
+                    WHERE p.document_id = d.id
+                      AND p.user_id = CAST(:user_id AS uuid)
+                      AND p.permission IN ('read', 'write', 'owner')
+                )
+            """
+            params["user_id"] = str(user_id)
+        elif not include_all:
+            permission_clause = "AND FALSE"
+
+        retrieval_query = text(
+            f"""
+            SELECT
+                c.id AS chunk_id,
+                1 - (c.embedding_vector <=> CAST(:embedding AS vector)) AS similarity_score
+            FROM {SCHEMA_NAME}.document_chunks AS c
+            JOIN {SCHEMA_NAME}.documents AS d ON d.id = c.document_id
+            WHERE c.embedding_vector IS NOT NULL
+              AND c.embedding_provider = :embedding_provider
+              AND c.embedding_model = :embedding_model
+              AND d.status = 'ready'
+              AND d.is_deleted IS FALSE
+              {permission_clause}
+              AND 1 - (c.embedding_vector <=> CAST(:embedding AS vector)) >= :min_similarity
+            ORDER BY c.embedding_vector <=> CAST(:embedding AS vector) ASC
+            LIMIT :top_k
+            """
+        )
+        rows = (await db.execute(retrieval_query, params)).all()
+        chunk_ids = [row.chunk_id for row in rows]
+        if not chunk_ids:
+            return []
+
+        score_by_chunk_id = {
+            row.chunk_id: float(row.similarity_score)
+            for row in rows
+        }
+        chunk_query = (
+            select(DocumentChunk, Document)
+            .join(Document)
+            .join(DocumentCategoryModel)
+            .options(selectinload(Document.category))
+            .where(DocumentChunk.id.in_(chunk_ids))
+        )
+        chunk_rows = (await db.execute(chunk_query)).all()
+        match_by_chunk_id = {
+            chunk.id: DocumentChunkMatch(
+                chunk=chunk,
+                document=document,
+                similarity_score=score_by_chunk_id[chunk.id],
+            )
+            for chunk, document in chunk_rows
+        }
+        return [
+            match_by_chunk_id[chunk_id]
+            for chunk_id in chunk_ids
+            if chunk_id in match_by_chunk_id
+        ]
 
     async def user_has_document_permission(
         self,
@@ -414,6 +511,7 @@ class DocumentRepository:
             ]
         )
         await db.commit()
+        await _sync_document_chunk_vectors(db, document.id, chunks)
 
     async def soft_delete_document(self, db: AsyncSession, document: Document) -> Document:
         """Mark one document as deleted without removing its row."""
@@ -577,9 +675,60 @@ def _cosine_similarity(left: list[float], right: list[float]) -> float:
 
     if len(left) != len(right) or not left:
         return 0.0
-    dot_product = sum(left_value * right_value for left_value, right_value in zip(left, right))
+    dot_product = sum(
+        left_value * right_value
+        for left_value, right_value in zip(left, right)
+    )
     left_norm = math.sqrt(sum(left_value * left_value for left_value in left))
     right_norm = math.sqrt(sum(right_value * right_value for right_value in right))
     if left_norm == 0 or right_norm == 0:
         return 0.0
     return dot_product / (left_norm * right_norm)
+
+
+async def _embedding_vector_column_exists(db: AsyncSession) -> bool:
+    """Return whether this database has the optional pgvector column."""
+
+    exists = await db.scalar(
+        text(
+            """
+            SELECT count(1)
+            FROM information_schema.columns
+            WHERE table_schema = :schema_name
+              AND table_name = 'document_chunks'
+              AND column_name = 'embedding_vector'
+            """
+        ),
+        {"schema_name": SCHEMA_NAME},
+    )
+    return bool(exists)
+
+
+async def _sync_document_chunk_vectors(
+    db: AsyncSession,
+    document_id: UUID,
+    chunks: list[DocumentChunkPayload],
+) -> None:
+    """Copy text embeddings into the optional pgvector column when available."""
+
+    if not await _embedding_vector_column_exists(db):
+        return
+    for chunk in chunks:
+        if chunk.embedding is None:
+            continue
+        await db.execute(
+            text(
+                f"""
+                UPDATE {SCHEMA_NAME}.document_chunks
+                SET embedding_vector = CAST(:embedding AS vector)
+                WHERE document_id = CAST(:document_id AS uuid)
+                  AND chunk_index = :chunk_index
+                """
+            ),
+            {
+                "embedding": _serialize_embedding(chunk.embedding),
+                "document_id": str(document_id),
+                "chunk_index": chunk.chunk_index,
+            },
+        )
+    await db.commit()
