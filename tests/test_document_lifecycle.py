@@ -9,7 +9,7 @@ from sqlalchemy import delete
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.core.config import DocumentCategory
+from app.core.config import DocumentCategory, settings
 from app.db.session import AsyncSessionLocal
 from app.models.database import Document
 from app.schemas.documents.schemas import DocumentCreate, DocumentUpdate
@@ -23,6 +23,8 @@ from app.services.documents.exceptions import (
 async def check_document_lifecycle() -> None:
     """Verify version history, soft delete/restore, and duplicate detection."""
 
+    original_embeddings_enabled = settings.embeddings_enabled
+    settings.embeddings_enabled = False
     suffix = uuid4().hex[:8]
     document_name = f"lifecycle-{suffix}"
     original_content = f"# Lifecycle {suffix}\n\nOriginal content {suffix}."
@@ -109,6 +111,7 @@ async def check_document_lifecycle() -> None:
             if restored.is_deleted or restored.deleted_at is not None:
                 raise AssertionError("Restore should clear soft-delete fields.")
         finally:
+            settings.embeddings_enabled = original_embeddings_enabled
             await db.execute(
                 delete(Document).where(Document.title.ilike(f"{document_name}%"))
             )

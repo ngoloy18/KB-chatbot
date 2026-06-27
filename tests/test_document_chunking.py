@@ -9,7 +9,7 @@ from sqlalchemy import delete, func, select
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.core.config import DocumentCategory
+from app.core.config import DocumentCategory, settings
 from app.db.session import AsyncSessionLocal
 from app.models.database import Document, DocumentChunk
 from app.schemas.documents.schemas import DocumentCreate, DocumentUpdate
@@ -41,6 +41,8 @@ def check_text_chunking() -> None:
 async def check_document_chunks_are_saved() -> None:
     """Verify document create/update writes rows into kb.document_chunks."""
 
+    original_embeddings_enabled = settings.embeddings_enabled
+    settings.embeddings_enabled = False
     document_name = f"chunk-test-{uuid4().hex[:8]}"
     initial_content = "\n\n".join(
         f"Paragraph {index}: coding convention details." for index in range(80)
@@ -87,6 +89,7 @@ async def check_document_chunks_are_saved() -> None:
             if updated_chunk_count != expected_updated_chunks:
                 raise AssertionError("Document update should replace old chunks.")
         finally:
+            settings.embeddings_enabled = original_embeddings_enabled
             await db.execute(delete(Document).where(Document.title == document_name))
             await db.commit()
 

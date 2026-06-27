@@ -10,7 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.constants.permissions import DOCUMENT_PERMISSION_READ
-from app.core.config import DocumentCategory
+from app.core.config import DocumentCategory, settings
 from app.core.security import hash_password
 from app.db.session import AsyncSessionLocal
 from app.models.database import Document, User
@@ -27,6 +27,8 @@ from app.services import document_service
 async def check_document_chunk_search() -> None:
     """Verify chunk search respects admin/user document permissions."""
 
+    original_embeddings_enabled = settings.embeddings_enabled
+    settings.embeddings_enabled = False
     suffix = uuid4().hex[:8]
     document_name = f"search-test-{suffix}"
     user_email = f"search_user_{suffix}@example.com"
@@ -103,6 +105,7 @@ async def check_document_chunk_search() -> None:
             if user_results_after_revoke.total != 0:
                 raise AssertionError("User search should respect revoked permission.")
         finally:
+            settings.embeddings_enabled = original_embeddings_enabled
             await db.execute(delete(Document).where(Document.title == document_name))
             await db.execute(delete(User).where(User.email == user_email))
             await db.commit()
