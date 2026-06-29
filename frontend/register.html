@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register | MedKB Dev</title>
+    <link rel="stylesheet" href="assets/styles.css">
+  </head>
+  <body class="auth-body">
+    <main class="auth-page">
+      <section class="auth-visual" aria-label="MedKB Dev registration">
+        <div class="brand-lockup">
+          <span class="brand-icon">+</span>
+          <div>
+            <span class="brand-title">MedKB Dev</span>
+            <span class="brand-subtitle">Healthcare AI Developer Assistant</span>
+          </div>
+        </div>
+
+        <span class="medical-plus one">+</span>
+        <span class="medical-plus two">+</span>
+        <span class="medical-plus three">+</span>
+
+        <section class="auth-card glass" aria-labelledby="register-title">
+          <div class="icon-box">+</div>
+          <div class="auth-heading">
+            <h1 id="register-title">Create developer account</h1>
+            <p>Register first, then verify your email before login.</p>
+          </div>
+
+          <div class="status-grid" aria-label="Account setup progress">
+            <span class="flow-step active">Register</span>
+            <span class="flow-step">Verify</span>
+            <span class="flow-step">Login</span>
+            <span class="flow-step">Chat</span>
+          </div>
+
+          <form id="register-form" class="stack-form">
+            <label>
+              Full name
+              <span class="input-with-icon">
+                <span class="input-icon">N</span>
+                <input id="full-name" name="full_name" type="text" autocomplete="name" placeholder="Dev Nguyen" required maxlength="255">
+              </span>
+            </label>
+            <label>
+              Email
+              <span class="input-with-icon">
+                <span class="input-icon">@</span>
+                <input id="email" name="email" type="email" autocomplete="email" placeholder="developer@hospital.org" required>
+              </span>
+            </label>
+            <label>
+              Password
+              <span class="input-with-icon">
+                <span class="input-icon">*</span>
+                <input id="password" name="password" type="password" autocomplete="new-password" placeholder="Password123!" required minlength="8" maxlength="128">
+              </span>
+            </label>
+
+            <div id="register-alert" class="alert hidden" role="status"></div>
+            <button id="register-submit" class="primary-button" type="submit">Create account</button>
+          </form>
+
+          <div id="register-success" class="result-panel hidden">
+            <p class="result-title">Account created</p>
+            <p id="register-message" class="muted"></p>
+            <label class="token-field">
+              Verification token
+              <input id="verification-token" readonly>
+            </label>
+            <a id="verify-link" class="primary-link-button" href="verify.html">Continue to verification</a>
+          </div>
+
+          <p class="auth-switch">Already registered? <a href="verify.html">Verify email</a></p>
+        </section>
+
+        <footer class="auth-footer">
+          <span class="secure-line">Secure - Private - Developer-focused</span>
+          <span>&copy; 2026 MedKB Dev.</span>
+        </footer>
+      </section>
+
+      <section class="auth-info">
+        <div class="auth-info-content">
+          <div>
+            <h2>Start with trust.<br>Then ship <strong>healthcare AI</strong>.</h2>
+            <p>MedKB Dev keeps registration, verification, and access control visible before users reach protected knowledge.</p>
+          </div>
+
+          <div class="feature-list">
+            <article class="feature-item">
+              <span class="icon-box">1</span>
+              <div>
+                <h3>Register</h3>
+                <p>Create a normal user account with strong password rules.</p>
+              </div>
+            </article>
+            <article class="feature-item">
+              <span class="icon-box">2</span>
+              <div>
+                <h3>Verify</h3>
+                <p>Confirm email before protected login is allowed.</p>
+              </div>
+            </article>
+            <article class="feature-item">
+              <span class="icon-box">3</span>
+              <div>
+                <h3>Login</h3>
+                <p>Use secure tokens to enter chat, documents, and admin tools.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <footer class="auth-links">
+          <a href="login.html">Login</a>
+          <a href="verify.html">Verify</a>
+        </footer>
+      </section>
+    </main>
+
+    <script type="module" src="src/register.js"></script>
+  </body>
+</html>

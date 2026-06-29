@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedKB Dev</title>
+    <link rel="stylesheet" href="assets/styles.css">
+  </head>
+  <body>
+    <script>
+      const token = window.localStorage.getItem("kb_access_token");
+      window.location.replace(token ? "chat.html" : "login.html");
+    </script>
+  </body>
+</html>

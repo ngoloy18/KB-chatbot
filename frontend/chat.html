@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat | MedKB Dev</title>
+    <link rel="stylesheet" href="assets/styles.css">
+  </head>
+  <body class="app-body">
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-lockup">
+          <span class="brand-icon">+</span>
+          <div>
+            <span class="brand-title">MedKB Dev</span>
+            <span class="brand-subtitle">Healthcare AI Dev Assistant</span>
+          </div>
+        </div>
+
+        <div class="nav-groups">
+          <nav class="nav-list" aria-label="Main navigation">
+            <a class="nav-link active" href="chat.html"><span class="nav-icon">C</span>Chat <span class="kbd-pill">K</span></a>
+            <a class="nav-link" href="documents.html"><span class="nav-icon">D</span>Documents</a>
+            <a class="nav-link" href="documents.html"><span class="nav-icon">&lt;/&gt;</span>Code Snippets</a>
+            <a class="nav-link" href="documents.html"><span class="nav-icon">API</span>API Reference</a>
+            <a class="nav-link" href="documents.html"><span class="nav-icon">P</span>Projects</a>
+            <a class="nav-link" href="documents.html"><span class="nav-icon">B</span>Collections</a>
+          </nav>
+
+          <div>
+            <p class="nav-section-title">Admin</p>
+            <nav class="nav-list" aria-label="Admin navigation">
+              <a class="nav-link" href="users.html"><span class="nav-icon">U</span>Users</a>
+              <a class="nav-link" href="permissions.html"><span class="nav-icon">P</span>Permissions</a>
+            </nav>
+          </div>
+        </div>
+
+        <section class="quick-actions" aria-labelledby="quick-actions-title">
+          <h3 id="quick-actions-title">Quick Actions</h3>
+          <a class="quick-link" href="chat.html"><span>+</span>New Chat <span class="shortcut-key">K</span></a>
+          <a class="quick-link" href="documents.html"><span>^</span>Upload Document <span class="shortcut-key">U</span></a>
+          <a class="quick-link" href="documents.html"><span>{}</span>Create Snippet <span class="shortcut-key">S</span></a>
+        </section>
+
+        <section class="profile-card" aria-label="Signed in user">
+          <span class="avatar" id="sidebar-avatar">DN</span>
+          <div>
+            <span class="profile-name" id="sidebar-name">Dev Nguyen</span>
+            <span class="profile-role" id="sidebar-role">Backend Developer</span>
+          </div>
+        </section>
+      </aside>
+
+      <main class="main-shell">
+        <header class="topbar">
+          <div class="search-box">
+            <span class="search-icon">Q</span>
+            <input type="search" placeholder="Search documents, code, APIs...">
+            <span class="shortcut-key search-shortcut">/</span>
+          </div>
+          <div></div>
+          <div class="top-actions">
+            <div class="workspace-select"><span>W</span>Workspace: Core Platform</div>
+            <button class="icon-button bell" type="button" title="Notifications">N<span class="notification-dot">3</span></button>
+            <button class="icon-button" type="button" title="Help">?</button>
+            <button id="logout" class="secondary-button logout-button" type="button" title="Logout">Logout</button>
+          </div>
+        </header>
+
+        <section class="content-area">
+          <div class="chat-board">
+            <section class="chat-main" aria-labelledby="chat-title">
+              <header class="chat-toolbar">
+                <div class="chat-title-row">
+                  <h1 id="chat-title">New Chat</h1>
+                  <button class="icon-button" id="new-chat" type="button" title="New chat">+</button>
+                </div>
+                <div class="toolbar-actions">
+                  <button class="icon-button" type="button" title="Open session">O</button>
+                  <button class="icon-button" type="button" title="Share">S</button>
+                  <button class="icon-button" type="button" title="History">H</button>
+                </div>
+              </header>
+
+              <div id="messages" class="message-stream">
+                <div class="message-row user">
+                  <span class="avatar">DN</span>
+                  <div class="message-bubble">
+                    <div class="message-meta">
+                      <span class="message-author">You</span>
+                      <span class="message-time">Ready</span>
+                    </div>
+                    Ask a question from your internal healthcare knowledge base.
+                  </div>
+                </div>
+                <div class="message-row assistant">
+                  <span class="brand-icon">+</span>
+                  <div class="message-bubble">
+                    <div class="message-meta">
+                      <span class="message-author">MedKB Dev AI</span>
+                      <span class="message-time">Ready</span>
+                    </div>
+                    I will answer using your uploaded documents and return citations when sources are available.
+                    <div class="code-preview">
+                      <div class="code-preview-header"><span>example request</span><span>Copy</span></div>
+                      <pre>POST /api/chat
+Authorization: Bearer &lt;token&gt;
+
+{
+  "question": "What is our API error standard?"
+}</pre>
+                    </div>
+                    <span class="badge teal">Citations ready</span>
+                  </div>
+                </div>
+              </div>
+
+              <form id="chat-form" class="chat-composer">
+                <div class="composer-tools">
+                  <button class="icon-button" type="button" title="Attach">A</button>
+                  <button class="secondary-button" type="button">&lt;/&gt; Code</button>
+                </div>
+                <input id="question" name="question" type="text" autocomplete="off" maxlength="1000" placeholder="Ask a question or describe what you need..." required>
+                <button id="send-message" class="primary-button send-button" type="submit">Send</button>
+              </form>
+              <div id="chat-alert" class="alert hidden" role="status"></div>
+            </section>
+
+            <aside class="right-rail">
+              <section class="rail-card" aria-labelledby="sources-title">
+                <div class="rail-heading">
+                  <h2 id="sources-title">Sources <span class="badge gray" id="source-count">0</span></h2>
+                  <span>^</span>
+                </div>
+                <div id="sources" class="source-list">
+                  <p class="muted">Sources will appear after an answer.</p>
+                </div>
+              </section>
+
+              <section class="rail-card" aria-labelledby="context-title">
+                <div class="rail-heading">
+                  <h2 id="context-title">Current Context</h2>
+                </div>
+                <div class="context-list">
+                  <div class="context-item"><span>Workspace</span><strong>Core Platform</strong></div>
+                  <div class="context-item"><span>Project</span><strong>MedKB RAG Service</strong></div>
+                  <div class="context-item"><span>Documents in context</span><strong id="doc-context-count">0</strong></div>
+                  <div class="context-item"><span>Model</span><strong id="model-used">Ready</strong></div>
+                </div>
+              </section>
+
+              <section class="rail-card" aria-labelledby="session-title">
+                <div class="rail-heading">
+                  <h2 id="session-title">Chat history</h2>
+                </div>
+                <div id="session-list" class="session-list"></div>
+              </section>
+
+              <section class="rail-card" aria-labelledby="shortcuts-title">
+                <div class="rail-heading">
+                  <h2 id="shortcuts-title">Shortcuts</h2>
+                </div>
+                <div class="shortcut-list">
+                  <div class="shortcut-item"><span><span class="shortcut-key">K</span> New chat</span></div>
+                  <div class="shortcut-item"><span><span class="shortcut-key">U</span> Upload document</span></div>
+                  <div class="shortcut-item"><span><span class="shortcut-key">/</span> Search</span></div>
+                  <div class="shortcut-item"><span><span class="shortcut-key">Enter</span> Send message</span></div>
+                </div>
+              </section>
+            </aside>
+          </div>
+        </section>
+
+        <footer class="footerbar">
+          <span class="secure-line">Secure - HIPAA Compliant - SOC 2 Ready</span>
+          <span>v1.2.0 - All systems operational <span class="badge green">Online</span></span>
+        </footer>
+      </main>
+    </div>
+
+    <script type="module" src="src/chat.js"></script>
+  </body>
+</html>
