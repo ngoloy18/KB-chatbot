@@ -82,9 +82,8 @@ class DocumentResponse(BaseModel):
     id: UUID
     name: str
     category: DocumentCategory
-    # File metadata helps prove file_name/file_path/file_type were saved.
+    # Keep public file metadata useful without exposing server storage paths.
     file_name: str | None = None
-    file_path: str | None = None
     file_type: str | None = None
     content_checksum: str | None = None
     content: str
@@ -134,7 +133,6 @@ def document_to_response(document: Document) -> DocumentResponse:
         name=document.title,
         category=DocumentCategory(document.category.name),
         file_name=document.file_name,
-        file_path=document.file_path,
         file_type=document.file_type,
         content_checksum=document.content_checksum,
         content=document.content,
@@ -153,7 +151,6 @@ class DocumentVersionResponse(BaseModel):
     name: str
     category: DocumentCategory
     file_name: str | None = None
-    file_path: str | None = None
     file_type: str | None = None
     content_checksum: str | None = None
     content: str

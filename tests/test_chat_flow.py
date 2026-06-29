@@ -13,6 +13,7 @@ import app.services.chat.service as chat_service_module
 import app.services.chat.retrieval as retrieval_module
 import app.services.documents.service as document_service_module
 from app.constants.ai import AI_RUN_STATUS_FAILED
+from app.constants.chat import CHAT_ROLE_ASSISTANT, CHAT_ROLE_USER
 from app.constants.permissions import DOCUMENT_PERMISSION_READ
 from app.core.config import DocumentCategory, settings
 from app.core.security import hash_password
@@ -200,10 +201,11 @@ async def check_chat_flow() -> None:
 
             happy_provider = StubAIProvider(answer="happy answer")
             original_factory = use_stub_provider(happy_provider)
+            first_question = f"What says allowed context {suffix}?"
             happy_response = await chat_service.chat(
                 db=db,
                 user_id=user.id,
-                question=f"What says allowed context {suffix}?",
+                question=first_question,
                 is_admin=False,
             )
             if happy_response.answer != "happy answer":
@@ -219,6 +221,46 @@ async def check_chat_flow() -> None:
             )
             if happy_run is None or happy_run.total_tokens != 18:
                 raise AssertionError("Chat should record provider token usage.")
+
+            second_question = f"Can you summarize that again {suffix}?"
+            second_response = await chat_service.chat(
+                db=db,
+                user_id=user.id,
+                question=second_question,
+                session_id=happy_response.session_id,
+                is_admin=False,
+            )
+            if second_response.session_id != happy_response.session_id:
+                raise AssertionError("Chat should continue the same session.")
+            if first_question not in happy_provider.prompts[-1]:
+                raise AssertionError("Follow-up prompt should include chat history.")
+            if "happy answer" not in happy_provider.prompts[-1]:
+                raise AssertionError("Follow-up prompt should include assistant history.")
+
+            session_detail = await chat_service.get_session(
+                db=db,
+                user_id=user.id,
+                session_id=happy_response.session_id,
+            )
+            messages = session_detail.messages
+            if len(messages) != 4:
+                raise AssertionError("Session history should include both Q&A turns.")
+            roles = [message.role for message in messages]
+            if roles != [
+                CHAT_ROLE_USER,
+                CHAT_ROLE_ASSISTANT,
+                CHAT_ROLE_USER,
+                CHAT_ROLE_ASSISTANT,
+            ]:
+                raise AssertionError("Session messages should be returned in order.")
+            if messages[0].content != first_question:
+                raise AssertionError("First user message should be preserved.")
+            if messages[1].content != "happy answer":
+                raise AssertionError("First assistant message should be preserved.")
+            if messages[2].content != second_question:
+                raise AssertionError("Second user message should be preserved.")
+            if messages[3].content != "happy answer":
+                raise AssertionError("Second assistant message should be preserved.")
 
             no_docs_provider = StubAIProvider(answer="should not be called")
             chat_service_module.create_ai_provider = lambda: no_docs_provider

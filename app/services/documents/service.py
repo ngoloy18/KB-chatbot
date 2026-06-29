@@ -178,17 +178,12 @@ class DocumentService:
 
         # Reuse the helper so missing documents get the same not-found behavior.
         document = await self._get_document_or_raise(db, document_id)
-        if not is_admin:
-            if current_user_id is None:
-                raise DocumentAccessDeniedError("Login is required to update documents.")
-            user_can_write = await document_repository.user_has_document_permission(
-                db,
-                document_id,
-                current_user_id,
-                DOCUMENT_WRITE_PERMISSIONS,
-            )
-            if not user_can_write:
-                raise DocumentAccessDeniedError("Write permission is required.")
+        await self._raise_if_cannot_update_document(
+            db=db,
+            document_id=document_id,
+            current_user_id=current_user_id,
+            is_admin=is_admin,
+        )
 
         category = None
         if payload.category is not None:
@@ -223,6 +218,24 @@ class DocumentService:
             await self._replace_document_chunks(db, document, payload.content)
         await document_repository.create_document_version(db, document)
         return document_to_response(document)
+
+    async def get_document_file_path_for_replacement(
+        self,
+        db: AsyncSession,
+        document_id: UUID,
+        current_user_id: UUID | None = None,
+        is_admin: bool = False,
+    ) -> str | None:
+        """Return the saved file path for cleanup before a document is replaced."""
+
+        document = await self._get_document_or_raise(db, document_id)
+        await self._raise_if_cannot_update_document(
+            db=db,
+            document_id=document_id,
+            current_user_id=current_user_id,
+            is_admin=is_admin,
+        )
+        return document.file_path
 
     async def delete_document(
         self,
@@ -318,7 +331,6 @@ class DocumentService:
                     name=version.title,
                     category=DocumentCategory(version.category.name),
                     file_name=version.file_name,
-                    file_path=version.file_path,
                     file_type=version.file_type,
                     content_checksum=version.content_checksum,
                     content=version.content,
@@ -394,6 +406,28 @@ class DocumentService:
         if document is None:
             raise DocumentNotFoundError(f"Document {document_id} was not found.")
         return document
+
+    async def _raise_if_cannot_update_document(
+        self,
+        db: AsyncSession,
+        document_id: UUID,
+        current_user_id: UUID | None,
+        is_admin: bool,
+    ) -> None:
+        """Raise when the current user cannot replace the document content."""
+
+        if is_admin:
+            return
+        if current_user_id is None:
+            raise DocumentAccessDeniedError("Login is required to update documents.")
+        user_can_write = await document_repository.user_has_document_permission(
+            db,
+            document_id,
+            current_user_id,
+            DOCUMENT_WRITE_PERMISSIONS,
+        )
+        if not user_can_write:
+            raise DocumentAccessDeniedError("Write permission is required.")
 
     async def _raise_if_duplicate_checksum(
         self,

@@ -383,9 +383,9 @@ async def update_document(
     )
 
     new_file_path = payload.file_path
-    old_document = None
+    old_file_path = None
     try:
-        old_document = await document_service.get_document(
+        old_file_path = await document_service.get_document_file_path_for_replacement(
             db=db,
             document_id=document_id,
             current_user_id=current_user.id,
@@ -399,7 +399,7 @@ async def update_document(
             current_user_id=current_user.id,
             is_admin=current_user.role == USER_ROLE_ADMIN,
         )
-        cleanup_saved_upload(old_document.file_path)
+        cleanup_saved_upload(old_file_path)
         logger.info(
             "event=document.upload_replaced document_id=%s user_id=%s",
             updated_document.id,

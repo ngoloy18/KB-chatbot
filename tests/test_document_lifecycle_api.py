@@ -121,6 +121,13 @@ def login(email: str, password: str) -> str:
     return response["access_token"]
 
 
+def assert_no_public_file_path(payload: dict) -> None:
+    """Document endpoint responses must not expose local server storage paths."""
+
+    if "file_path" in payload:
+        raise AssertionError("Public document responses must not expose file_path.")
+
+
 async def cleanup_documents(name_prefix: str) -> None:
     """Hard-delete lifecycle API test documents and their uploaded files."""
 
@@ -177,6 +184,7 @@ def run_document_lifecycle_api_test() -> None:
         )
         document_id = uploaded["id"]
         original_checksum = uploaded["content_checksum"]
+        assert_no_public_file_path(uploaded)
         if not original_checksum or len(original_checksum) != 64:
             raise AssertionError("Upload should return a SHA-256 checksum.")
 
@@ -203,6 +211,7 @@ def run_document_lifecycle_api_test() -> None:
         )
         if versions["total"] != 1:
             raise AssertionError("Upload should create version 1.")
+        assert_no_public_file_path(versions["items"][0])
 
         updated = api_request(
             "PUT",
@@ -220,6 +229,7 @@ def run_document_lifecycle_api_test() -> None:
         )
         if updated["content_checksum"] == original_checksum:
             raise AssertionError("Update should change the checksum.")
+        assert_no_public_file_path(updated)
 
         versions = api_request(
             "GET",
@@ -256,6 +266,7 @@ def run_document_lifecycle_api_test() -> None:
         )
         if restored["is_deleted"] or restored["deleted_at"] is not None:
             raise AssertionError("Restore should clear soft-delete fields.")
+        assert_no_public_file_path(restored)
     finally:
         asyncio.run(cleanup_documents(document_name))
 

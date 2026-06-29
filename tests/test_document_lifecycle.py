@@ -20,6 +20,13 @@ from app.services.documents.exceptions import (
 )
 
 
+def assert_no_public_file_path(payload: object) -> None:
+    """Document API models must not expose local server storage paths."""
+
+    if hasattr(payload, "model_dump") and "file_path" in payload.model_dump():
+        raise AssertionError("Public document responses must not expose file_path.")
+
+
 async def check_document_lifecycle() -> None:
     """Verify version history, soft delete/restore, and duplicate detection."""
 
@@ -45,6 +52,7 @@ async def check_document_lifecycle() -> None:
             )
             if not document.content_checksum or len(document.content_checksum) != 64:
                 raise AssertionError("Created document should have a SHA-256 checksum.")
+            assert_no_public_file_path(document)
 
             try:
                 await document_service.create_document(
@@ -70,6 +78,7 @@ async def check_document_lifecycle() -> None:
             )
             if versions.total != 1 or versions.items[0].version_number != 1:
                 raise AssertionError("Create should save version 1.")
+            assert_no_public_file_path(versions.items[0])
 
             updated = await document_service.update_document(
                 db,
@@ -86,6 +95,7 @@ async def check_document_lifecycle() -> None:
             )
             if updated.content_checksum == document.content_checksum:
                 raise AssertionError("Updated content should change checksum.")
+            assert_no_public_file_path(updated)
 
             versions = await document_service.list_document_versions(
                 db,
@@ -110,6 +120,7 @@ async def check_document_lifecycle() -> None:
             )
             if restored.is_deleted or restored.deleted_at is not None:
                 raise AssertionError("Restore should clear soft-delete fields.")
+            assert_no_public_file_path(restored)
         finally:
             settings.embeddings_enabled = original_embeddings_enabled
             await db.execute(
