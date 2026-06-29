@@ -5,15 +5,27 @@ SQLAlchemy, and Alembic.
 
 ## Current Status
 
-This project has completed the Week 3 authentication/upload base and now includes
-the first AI chat backend.
+This project is a backend-first developer knowledge-base chatbot. The server is
+now requirement-ready for the current backend milestone: auth, admin user
+management, document lifecycle, permissions, chat history, RAG answers, Gemini
+AI integration, embeddings, pgvector search, audit logs, and script tests are in
+place.
 
-The document API now stores uploaded documents in PostgreSQL instead of an
-in-memory dictionary. Data should stay available after the API server restarts.
-Auth endpoints use JWT access and refresh tokens, logout revokes refresh tokens,
-and document upload is protected by admin role. Admin users can also list,
-update, and delete user accounts. The chat API can answer from uploaded
-engineering-standard documents through a configurable AI provider.
+The app is currently a modular monolith: one FastAPI service owns the API,
+business logic, database access, AI orchestration, and local document storage.
+The code is split by routes, services, repositories, schemas, models, and
+feature folders so it can stay understandable while still being simple to run
+for a class project or mentor demo.
+
+The backend is not production-perfect yet. The biggest remaining product work is
+the frontend. The biggest remaining production work is Docker/deploy setup,
+Redis-backed rate limiting, structured request logging, backup/restore practice,
+object storage/background document processing, and a few account-security polish
+items such as password change and revoke-all-sessions.
+
+Public document responses intentionally do not expose internal storage
+`file_path` values. Uploaded file paths stay server-side only so the API does
+not leak local filesystem details.
 
 ## Requirements
 
@@ -213,17 +225,19 @@ alembic upgrade head
 Do not run `alembic upgrade head` against a database where the same tables
 already exist, or PostgreSQL will complain that the tables already exist.
 
-## Test Database Connection
+## Full Backend Verification
 
-Run:
+Run this before committing backend changes:
 
 ```powershell
+py -m compileall app alembic tests
 py tests/test_database_connection.py
 py tests/test_model_mappers.py
 py tests/test_auth_security.py
 py tests/test_auth_flow.py
 py tests/test_auth_password_validation.py
 py tests/test_rate_limiter.py
+py tests/test_email_service.py
 py tests/test_document_chunking.py
 py tests/test_document_lifecycle.py
 py tests/test_document_search.py
@@ -233,8 +247,34 @@ py tests/test_token_cleanup.py
 py tests/test_user_soft_delete.py
 ```
 
-With the API server running on `http://127.0.0.1:8000`, run the live endpoint
-smoke test:
+Expected success output includes:
+
+```text
+Database connection OK: connected to 'chatbot_db'.
+Schema OK: found kb schema and all 14 expected tables.
+Categories OK: found all 6 document categories.
+SQLAlchemy model mappers OK.
+Auth security helpers OK.
+Normal user register/login flow OK.
+Password validation OK.
+Rate limiter OK.
+Email service config OK.
+Document chunking OK.
+Document lifecycle OK.
+Document chunk search OK.
+Ask flow OK.
+Chat flow OK.
+Token cleanup OK.
+User soft delete OK.
+```
+
+For live API tests, start the server first:
+
+```powershell
+py -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --access-log --log-level info
+```
+
+Then run:
 
 ```powershell
 py tests/test_api_smoke.py
@@ -242,13 +282,17 @@ py tests/test_upload_rules.py
 py tests/test_document_lifecycle_api.py
 ```
 
-Expected success output:
+Expected success output includes:
 
 ```text
-Database connection OK: connected to 'chatbot_db'.
-Schema OK: found kb schema and all 14 expected tables.
-Categories OK: found all 6 document categories.
+Live Swagger/API smoke test OK.
+Upload rules OK.
+Live document lifecycle API test OK.
 ```
+
+The sensitive auth/upload endpoints have a stricter local rate limiter. If a
+live test returns `429 Too Many Requests` from `/api/auth/login`, wait for
+`SENSITIVE_RATE_LIMIT_WINDOW_SECONDS` to pass and rerun that test.
 
 ## Run Locally
 
@@ -277,7 +321,9 @@ py scripts/seed_admin.py
 ```
 
 The script reads `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` from `.env`.
-Running it twice does not create duplicate admins.
+Running it twice does not create duplicate admins. It checks for an existing
+user by email first, promotes that user if needed, and the `users.email` column
+is unique at the database level.
 
 ## Cleanup Old Tokens
 
@@ -356,6 +402,21 @@ routes -> services -> repositories -> database
 Routes handle HTTP, file uploads, and error-to-status-code translation.
 Services contain business logic and response conversion.
 Repositories contain SQLAlchemy queries and database commits.
+
+## Server Design And Tradeoffs
+
+| Design choice | What it gives you | Tradeoff |
+| --- | --- | --- |
+| Modular monolith with FastAPI | Simple local setup, one deployable server, easy mentor demo | The whole backend scales and deploys as one unit |
+| Route/service/repository layers | Clear ownership for HTTP, business rules, and database queries | More files than a tiny prototype |
+| PostgreSQL schema `kb` with Alembic | Durable data, migrations, organized tables | Requires migration discipline and rollback practice |
+| JWT access tokens plus refresh-token table | Fast authenticated API calls and revocable sessions | Token rotation and cleanup add complexity |
+| Admin/user roles plus document permissions | User isolation and per-document access control | More policy tests are needed for every protected route |
+| Local markdown upload storage | Easy to build and test on one machine | Production should move files to object storage |
+| Chunking plus keyword/vector retrieval | Real RAG answers with source citations | Needs embedding backfill/rechunk scripts when documents or chunk rules change |
+| Gemini provider behind AI service code | Better answer quality without running a local model | Depends on external API availability, latency, and cost |
+| In-memory rate limiter | Good local abuse protection with simple config | Multi-instance production should use Redis |
+| Script-style tests | Easy to run one by one while building | Pytest fixtures, CI coverage, and isolated test DB would be stronger |
 
 ## Endpoints
 
