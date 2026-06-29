@@ -227,6 +227,7 @@ py tests/test_rate_limiter.py
 py tests/test_document_chunking.py
 py tests/test_document_lifecycle.py
 py tests/test_document_search.py
+py tests/test_ask_flow.py
 py tests/test_chat_flow.py
 py tests/test_token_cleanup.py
 py tests/test_user_soft_delete.py
