@@ -1,0 +1,81 @@
+from fastapi import APIRouter, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+
+from app.core.config import settings
+from app.core.errors.exception_handlers import register_exception_handlers
+from app.core.middleware.rate_limiter import RateLimitMiddleware
+from app.db.session import engine
+from app.routes.ask import router as ask_router
+from app.routes.auth import router as auth_router
+from app.routes.chat import router as chat_router
+from app.routes.documents.permissions import router as document_permissions_router
+from app.routes.documents.documents import router as documents_router
+from app.routes.health.health import router as health_router
+from app.routes.users.users import router as users_router
+
+# Group every public API endpoint under /api so route modules can keep their
+# own focused prefixes, such as /documents.
+api_router = APIRouter(prefix="/api")
+api_router.include_router(ask_router)
+api_router.include_router(auth_router)
+api_router.include_router(chat_router)
+api_router.include_router(document_permissions_router)
+api_router.include_router(documents_router)
+api_router.include_router(health_router)
+api_router.include_router(users_router)
+
+
+# FastAPI application metadata appears in the generated Swagger/OpenAPI docs.
+app = FastAPI(
+    title=settings.app_title,
+    version=settings.app_version,
+    description=settings.app_description,
+)
+register_exception_handlers(app)
+if settings.cors_allowed_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(settings.cors_allowed_origins),
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+app.add_middleware(
+    RateLimitMiddleware,
+    enabled=settings.rate_limit_enabled,
+    max_requests=settings.rate_limit_requests,
+    window_seconds=settings.rate_limit_window_seconds,
+    excluded_paths=settings.rate_limit_excluded_paths,
+    route_limits={
+        path: (
+            settings.sensitive_rate_limit_requests,
+            settings.sensitive_rate_limit_window_seconds,
+        )
+        for path in settings.sensitive_rate_limit_paths
+    },
+)
+
+
+@app.on_event("startup")
+async def check_database_connection() -> None:
+    """Confirm the database is reachable when the API starts."""
+
+    try:
+        # SELECT 1 is a tiny query that proves the database accepts connections.
+        async with engine.connect() as connection:
+            await connection.scalar(text("SELECT 1"))
+    except Exception as exc:
+        # Raising the exception stops startup so a broken DB is visible immediately.
+        print(f"database connect failed: {exc}")
+        raise
+
+    # This is the message the user asked to see in the terminal on successful start.
+    print("database connect is working")
+
+
+# Attach the /api router after the app is created so all API routes are active.
+app.include_router(api_router)
+
+# Keep a root /ask alias for the Week 4 contract while /api/ask remains the
+# preferred API-grouped route used by the rest of the app.
+app.include_router(ask_router)

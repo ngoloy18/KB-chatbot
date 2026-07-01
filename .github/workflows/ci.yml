@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: kb_chatbot_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kb_chatbot_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      APP_NAME: developer-kb-chatbot
+      APP_TITLE: Developer KB Chatbot API
+      APP_VERSION: 0.2.0
+      APP_DESCRIPTION: FastAPI with SQLAlchemy, JWT auth, and protected uploads.
+      AI_PROVIDER: gemini
+      GEMINI_API_KEY: test-key
+      GEMINI_MODEL: test-model
+      AI_TIMEOUT_SECONDS: 5
+      AI_MAX_RETRIES: 0
+      AI_RETRY_DELAY_SECONDS: 0
+      CHAT_HISTORY_LIMIT: 12
+      EMBEDDINGS_ENABLED: "false"
+      EMBEDDING_PROVIDER: gemini
+      GEMINI_EMBEDDING_MODEL: test-embedding-model
+      EMBEDDING_DIMENSIONS: 0
+      RAG_TOP_K: 5
+      RAG_MAX_CONTEXT_TOKENS: 1800
+      RAG_MIN_SIMILARITY: 0
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/kb_chatbot_test
+      TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/kb_chatbot_test
+      DATABASE_SCHEMA: kb
+      JWT_SECRET: ci_test_secret_change_me
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 15
+      REFRESH_TOKEN_EXPIRE_MINUTES: 10080
+      PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: 30
+      PASSWORD_RESET_TOKEN_RETENTION_DAYS: 7
+      EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES: 1440
+      EMAIL_VERIFICATION_TOKEN_RETENTION_DAYS: 7
+      INITIAL_ADMIN_EMAIL: admin@example.com
+      INITIAL_ADMIN_PASSWORD: ChangeMe123!
+      EMAIL_ENABLED: "false"
+      EMAIL_RETURN_DEV_TOKENS: "true"
+      UPLOAD_DIR: uploads
+      MAX_UPLOAD_SIZE_MB: 10
+      ALLOWED_UPLOAD_EXTENSIONS: .md
+      RATE_LIMIT_ENABLED: "true"
+      RATE_LIMIT_REQUESTS: 100
+      RATE_LIMIT_WINDOW_SECONDS: 60
+      RATE_LIMIT_EXCLUDED_PATHS: /docs,/openapi.json,/redoc
+      SENSITIVE_RATE_LIMIT_REQUESTS: 5
+      SENSITIVE_RATE_LIMIT_WINDOW_SECONDS: 60
+      SENSITIVE_RATE_LIMIT_PATHS: /api/auth/login,/api/auth/register,/api/auth/forgot-password,/api/auth/reset-password,/api/auth/resend-verification,/api/documents/upload
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Run migrations
+        run: alembic upgrade head
+
+      - name: Compile app
+        run: python -m compileall app alembic
+
+      - name: Run local test scripts
+        run: |
+          python tests/test_database_connection.py
+          python tests/test_model_mappers.py
+          python tests/test_auth_security.py
+          python tests/test_auth_flow.py
+          python tests/test_auth_password_validation.py
+          python tests/test_rate_limiter.py
+          python tests/test_document_chunking.py
+          python tests/test_document_lifecycle.py
+          python tests/test_document_search.py
+          python tests/test_chat_flow.py
+          python tests/test_token_cleanup.py
+          python tests/test_user_soft_delete.py
