@@ -1,4 +1,5 @@
 from fastapi import APIRouter, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.core.config import settings
@@ -32,6 +33,13 @@ app = FastAPI(
     description=settings.app_description,
 )
 register_exception_handlers(app)
+if settings.cors_allowed_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(settings.cors_allowed_origins),
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 app.add_middleware(
     RateLimitMiddleware,
     enabled=settings.rate_limit_enabled,

@@ -103,6 +103,12 @@ class Settings:
             "FRONTEND_RESET_PASSWORD_URL",
             "http://127.0.0.1:8000/docs",
         )
+        self.cors_allowed_origins = self._parse_csv_values(
+            os.getenv(
+                "CORS_ALLOWED_ORIGINS",
+                "http://127.0.0.1:5173,http://localhost:5173",
+            )
+        )
 
         # Upload settings make file storage rules configurable per environment.
         self.upload_dir = os.getenv("UPLOAD_DIR", "uploads")

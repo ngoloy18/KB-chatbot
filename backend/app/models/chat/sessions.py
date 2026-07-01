@@ -33,4 +33,7 @@ class ChatSession(TimestampMixin, Base):
         back_populates="session",
         cascade="all, delete-orphan",
     )
-    ai_runs: Mapped[list["AIRun"]] = relationship(back_populates="session")
+    ai_runs: Mapped[list["AIRun"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )

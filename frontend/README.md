@@ -1,40 +1,52 @@
-# Frontend
+# MedKB Dev Frontend
 
-Dependency-free frontend for the MedKB Dev knowledge workspace.
+React frontend for the MedKB Dev healthcare AI developer assistant.
+
+## Tech
+
+- Vite + React
+- React Router
+- Tailwind CSS
+- lucide-react icons
+- localStorage token auth
+- FastAPI backend at `http://127.0.0.1:8000`
 
 ## Run Locally
 
-Start the backend first:
+Install Node.js first. Then:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Open:
+
+```text
+http://127.0.0.1:5173
+```
+
+Start the backend in another terminal:
 
 ```powershell
 cd backend
 py -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Then serve the frontend:
-
-```powershell
-cd frontend
-py -m http.server 5173
-```
-
-Open:
+## Routes
 
 ```text
-http://127.0.0.1:5173/login.html
+/login
+/register
+/verify-email
+/forgot-password
+/reset-password
+/chat
+/documents
+/documents/:id
+/admin/users
 ```
 
-## Pages
-
-```text
-login.html
-register.html -> verify.html -> login.html -> chat.html
-documents.html
-users.html
-permissions.html
-```
-
-The UI direction is clinical, multi-page, and lightly glass-styled. It follows
-the MedKB Dev healthcare developer dashboard reference, with sidebar navigation,
-top search/workspace controls, chat sources/context panels, document upload,
-admin users, and document permissions.
+The API client lives in `src/api/client.js` and uses the `/api` backend prefix.
+It calls the real backend routes listed in `backend/BACKEND_CAPABILITY_LOG.md`.
