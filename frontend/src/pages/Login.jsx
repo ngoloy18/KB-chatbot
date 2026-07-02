@@ -61,7 +61,7 @@ export function Login() {
                 Password
                 <span className="relative block">
                   <LockKeyhole className="absolute left-4 top-1/2 -translate-y-1/2 text-med-muted" size={18} />
-                  <input className="input pl-12" name="password" type="password" value={form.password} onChange={updateField} placeholder="Password123!" required />
+                  <input className="input pl-12" name="password" type="password" value={form.password} onChange={updateField} placeholder="Password" required />
                 </span>
               </label>
 

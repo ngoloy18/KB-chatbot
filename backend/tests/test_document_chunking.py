@@ -38,6 +38,49 @@ def check_text_chunking() -> None:
         raise AssertionError("Chunks should include token counts.")
 
 
+def check_overlap_respects_chunk_size() -> None:
+    """Verify overlap does not push a paragraph chunk over the size limit."""
+
+    content = "\n\n".join(["A" * 90, "B" * 40])
+    chunks = document_chunking_service.split_text(
+        content,
+        max_characters=100,
+        overlap_characters=50,
+    )
+    if len(chunks) != 2:
+        raise AssertionError("Two paragraphs should produce two chunks here.")
+    if any(len(chunk.content) > 100 for chunk in chunks):
+        raise AssertionError("Overlap should not create chunks over the max size.")
+
+
+def check_markdown_heading_context() -> None:
+    """Verify body chunks keep their active Markdown heading context."""
+
+    content = "\n\n".join(
+        [
+            "# Main Guide",
+            "Intro text.",
+            "## Deployment",
+            "Step one requires migrations.",
+            "Step two requires a restart.",
+        ]
+    )
+    chunks = document_chunking_service.split_text(
+        content,
+        max_characters=90,
+        overlap_characters=10,
+    )
+    if not any(
+        "# Main Guide" in chunk.content
+        and "## Deployment" in chunk.content
+        and "Step two requires a restart." in chunk.content
+        for chunk in chunks
+    ):
+        raise AssertionError(
+            "Chunks under a Markdown heading should include heading context."
+        )
+
+
 async def check_document_chunks_are_saved() -> None:
     """Verify document create/update writes rows into kb.document_chunks."""
 
@@ -98,6 +141,8 @@ async def main() -> None:
     """Run document chunking checks."""
 
     check_text_chunking()
+    check_overlap_respects_chunk_size()
+    check_markdown_heading_context()
     await check_document_chunks_are_saved()
     print("Document chunking OK.")
 

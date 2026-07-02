@@ -74,7 +74,7 @@ export function ResetPassword() {
               New password
               <span className="relative block">
                 <LockKeyhole className="absolute left-4 top-1/2 -translate-y-1/2 text-med-muted" size={18} />
-                <input className="input pl-12" name="newPassword" type="password" value={form.newPassword} onChange={updateField} placeholder="NewPassword123!" required />
+                <input className="input pl-12" name="newPassword" type="password" value={form.newPassword} onChange={updateField} placeholder="NewPassword" required />
               </span>
               <span className="text-xs font-semibold text-med-muted">Use uppercase, lowercase, number, and special character.</span>
             </label>

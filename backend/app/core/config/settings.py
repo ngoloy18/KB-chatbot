@@ -51,9 +51,11 @@ class Settings:
         )
         self.gemini_embedding_model = os.getenv("GEMINI_EMBEDDING_MODEL", "").strip()
         self.embedding_dimensions = int(os.getenv("EMBEDDING_DIMENSIONS", "0"))
-        self.rag_top_k = int(os.getenv("RAG_TOP_K", "5"))
-        self.rag_max_context_tokens = int(os.getenv("RAG_MAX_CONTEXT_TOKENS", "1800"))
+        self.rag_top_k = int(os.getenv("RAG_TOP_K", "10"))
+        self.rag_max_context_tokens = int(os.getenv("RAG_MAX_CONTEXT_TOKENS", "3200"))
         self.rag_min_similarity = float(os.getenv("RAG_MIN_SIMILARITY", "0"))
+        self.rag_neighbor_window = int(os.getenv("RAG_NEIGHBOR_WINDOW", "1"))
+        self.rag_debug_enabled = os.getenv("RAG_DEBUG", "false").lower() == "true"
 
         # Database settings keep local, Docker, and production values out of code.
         self.database_url = os.getenv("DATABASE_URL", "")

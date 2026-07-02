@@ -1,5 +1,8 @@
 import { History, MessageSquare, Plus, Send, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import { Component, useCallback, useEffect, useState } from "react";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
 
 import { chatApi } from "../api/client.js";
 import { SkeletonBlock } from "../components/Skeleton.jsx";
@@ -174,15 +177,24 @@ export function Chat() {
             </div>
           )}
           <div className="grid gap-6">
-            {messages.map((message) => (
-              <article className={`flex gap-4 ${message.role === "user" ? "justify-end" : "justify-start"}`} key={message.id || `${message.role}-${message.created_at}`}>
-                {message.role === "assistant" && <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border-2 border-med-primary text-2xl font-black text-med-primary">+</span>}
-                <div className={`max-w-3xl rounded-lg border border-med-border p-4 leading-7 ${message.role === "user" ? "bg-med-bg" : "bg-white"}`}>
-                  <p className="mb-2 text-sm font-black text-med-text">{message.role === "user" ? "You" : "KB Chat Bot Dev AI"}</p>
-                  <p className="whitespace-pre-wrap">{message.content}</p>
-                </div>
-              </article>
-            ))}
+            {messages.map((message) => {
+              const isUserMessage = message.role === "user";
+              return (
+                <article className={`flex gap-4 ${isUserMessage ? "justify-end" : "justify-start"}`} key={message.id || `${message.role}-${message.created_at}`}>
+                  {!isUserMessage && <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border-2 border-med-primary text-2xl font-black text-med-primary">+</span>}
+                  <div className={`max-w-3xl rounded-lg border border-med-border p-4 ${isUserMessage ? "bg-med-bg" : "bg-white"}`}>
+                    <p className="mb-2 text-sm font-black text-med-text">{isUserMessage ? "You" : "KB Chat Bot Dev AI"}</p>
+                    {!isUserMessage ? (
+                      <MessageRenderBoundary fallback={message.content}>
+                        <MarkdownMessage content={message.content} />
+                      </MessageRenderBoundary>
+                    ) : (
+                      <p className="whitespace-pre-wrap leading-7">{message.content}</p>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
             {loading && <p className="rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm font-semibold text-sky-700">Generating answer...</p>}
           </div>
         </div>
@@ -219,6 +231,41 @@ export function Chat() {
           </div>
         </section>
       </aside>
+    </div>
+  );
+}
+
+class MessageRenderBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error) {
+    console.error("Markdown message render failed.", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <p className="whitespace-pre-wrap">{String(this.props.fallback || "")}</p>;
+    }
+    return this.props.children;
+  }
+}
+
+function MarkdownMessage({ content }) {
+  return (
+    <div className="markdown-message">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeSanitize]}
+      >
+        {String(content || "")}
+      </ReactMarkdown>
     </div>
   );
 }

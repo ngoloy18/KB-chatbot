@@ -1,9 +1,13 @@
 from dataclasses import dataclass
+import re
 
 from app.constants.documents import (
     DEFAULT_CHUNK_MAX_CHARACTERS,
     DEFAULT_CHUNK_OVERLAP_CHARACTERS,
 )
+
+
+MARKDOWN_HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 
 
 @dataclass(frozen=True)
@@ -34,7 +38,11 @@ class DocumentChunkingService:
         current_parts: list[str] = []
         current_length = 0
 
-        for paragraph in self._split_paragraphs(cleaned_content):
+        paragraphs = self._attach_markdown_heading_context(
+            self._split_paragraphs(cleaned_content)
+        )
+
+        for paragraph in paragraphs:
             if len(paragraph) > max_characters:
                 self._flush_current_chunk(chunks, current_parts)
                 current_parts = []
@@ -51,9 +59,16 @@ class DocumentChunkingService:
             separator_length = 2 if current_parts else 0
             next_length = current_length + separator_length + len(paragraph)
             if current_parts and next_length > max_characters:
-                self._flush_current_chunk(chunks, current_parts)
-                current_parts = [paragraph]
-                current_length = len(paragraph)
+                previous_chunk = "\n\n".join(current_parts).strip()
+                chunks.append(previous_chunk)
+
+                allowed_overlap = max(max_characters - len(paragraph) - 2, 0)
+                overlap_text = self._get_overlap_text(
+                    previous_chunk,
+                    min(overlap_characters, allowed_overlap),
+                )
+                current_parts = [overlap_text, paragraph] if overlap_text else [paragraph]
+                current_length = len("\n\n".join(current_parts))
             else:
                 current_parts.append(paragraph)
                 current_length = next_length
@@ -78,6 +93,45 @@ class DocumentChunkingService:
             for paragraph in content.split("\n\n")
             if paragraph.strip()
         ]
+
+    @staticmethod
+    def _attach_markdown_heading_context(paragraphs: list[str]) -> list[str]:
+        """Copy active Markdown headings into body paragraphs for better retrieval."""
+
+        contextual_paragraphs: list[str] = []
+        heading_stack: list[tuple[int, str]] = []
+        for paragraph in paragraphs:
+            heading = DocumentChunkingService._extract_first_markdown_heading(paragraph)
+            if heading is not None:
+                level, heading_line = heading
+                heading_stack = [
+                    existing_heading
+                    for existing_heading in heading_stack
+                    if existing_heading[0] < level
+                ]
+                heading_stack.append((level, heading_line))
+                contextual_paragraphs.append(paragraph)
+                continue
+
+            if heading_stack:
+                heading_context = "\n".join(
+                    heading_line for _, heading_line in heading_stack
+                )
+                contextual_paragraphs.append(f"{heading_context}\n\n{paragraph}")
+            else:
+                contextual_paragraphs.append(paragraph)
+
+        return contextual_paragraphs
+
+    @staticmethod
+    def _extract_first_markdown_heading(paragraph: str) -> tuple[int, str] | None:
+        """Return the first Markdown heading line in a paragraph, if present."""
+
+        first_line = paragraph.splitlines()[0].strip()
+        heading_match = MARKDOWN_HEADING_PATTERN.match(first_line)
+        if heading_match is None:
+            return None
+        return len(heading_match.group(1)), first_line
 
     @staticmethod
     def _flush_current_chunk(chunks: list[str], current_parts: list[str]) -> None:
@@ -110,6 +164,18 @@ class DocumentChunkingService:
         """Approximate token count until a model tokenizer is introduced."""
 
         return len(text.split())
+
+    @staticmethod
+    def _get_overlap_text(previous_chunk: str, overlap_characters: int) -> str:
+        """Get the last part of the previous chunk to use as overlap for the next chunk."""
+
+        if overlap_characters <= 0:
+            return ""
+        overlap_text = previous_chunk[-overlap_characters:].strip()
+        first_space_index = overlap_text.find(" ")
+        if first_space_index > 0:
+            return overlap_text[first_space_index + 1 :].strip()
+        return overlap_text
 
 
 document_chunking_service = DocumentChunkingService()

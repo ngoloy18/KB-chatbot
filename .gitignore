@@ -4,6 +4,7 @@ __pycache__/
 .env
 frontend/.env
 frontend/node_modules/
+frontend/dist/
 uploads/
 .agents/
 PROJECT_PROGRESS_CHECKLIST.md

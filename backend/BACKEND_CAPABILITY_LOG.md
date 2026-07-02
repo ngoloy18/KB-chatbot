@@ -1,6 +1,6 @@
 # Backend Capability Log
 
-Last checked: 2026-07-01
+Last checked: 2026-07-02
 
 This log is the backend source of truth for frontend work. Build the frontend
 against what is listed here, not against mock UI ideas.
@@ -42,14 +42,15 @@ Current safe config state:
 Important email finding:
 
 - The backend really does try to send SMTP email through `smtplib`.
-- During live API tests, Gmail rejected the configured SMTP credentials with
-  authentication error `535 BadCredentials`.
-- Because the auth service catches email-send failures, registration and password
-  reset still return successfully with `email_sent=false`.
+- Current local Gmail SMTP credentials were retested successfully after the
+  credential update.
+- Because the auth service catches email-send failures, registration and
+  password reset still return successfully with `email_sent=false` if SMTP fails
+  later.
 - Because `EMAIL_RETURN_DEV_TOKENS=true`, verification/reset tokens are returned
   in API responses for local Swagger/testing.
-- For real email delivery, fix the SMTP credentials, usually by using a Gmail app
-  password instead of a normal account password.
+- For real email delivery, keep using a Gmail app password or another SMTP app
+  credential instead of a normal account password.
 - Frontend verification/reset URLs now point to the React frontend routes.
 
 ## Database
@@ -321,7 +322,13 @@ AI/RAG behavior:
 
 - Current provider is Gemini.
 - The system prompt lives in `app/core/prompts.py`.
-- Retrieval uses document chunks, pgvector embeddings, permissions, and citations.
+- Answers are requested as GitHub-flavored Markdown.
+- Retrieval uses document chunks, pgvector embeddings, permission filtering,
+  keyword fallback/supplementation, neighbor chunk expansion, and citations.
+- `RAG_DEBUG=true` logs retrieved chunk ids, similarity scores, token counts, and
+  text previews for debugging missed answers.
+- `scripts/rechunk_documents.py` can rebuild chunks and embeddings after chunking
+  or prompt-context changes.
 - Gemini/network access is required when embeddings or live AI answers are used.
 
 Not supported right now:
@@ -374,6 +381,7 @@ Passed:
 - `tests/test_rate_limiter.py`
 - `tests/test_auth_flow.py`
 - `tests/test_user_soft_delete.py`
+- `tests/test_user_hard_delete.py`
 - `tests/test_document_chunking.py`
 - `tests/test_document_lifecycle.py`
 - `tests/test_document_search.py`
@@ -393,8 +401,8 @@ Notes from failed/blocked attempts:
   already used by other live scripts.
 - `tests/test_document_lifecycle_api.py` can fail with Gemini socket/network
   errors if the server process cannot make outbound network calls.
-- SMTP delivery failed during live auth flows because Gmail rejected current SMTP
-  credentials.
+- Older SMTP attempts failed with Gmail `535 BadCredentials`; the current
+  credential set was retested successfully.
 
 ## Frontend Rules From Backend Truth
 
@@ -432,11 +440,9 @@ Do not build these as real features unless the backend adds them:
 
 Highest priority:
 
-- Fix SMTP credentials so verification and reset emails really deliver.
-- Change frontend email URLs away from `/docs` once frontend routes exist.
 - Decide whether dev tokens should stay on for class demo or be disabled.
-- Add a frontend-friendly reset password page and verify email page that consume
-  the token from the link.
+- Run a full backend plus frontend demo path after every major UI change.
+- Add a local test mode that stubs email and AI for live script tests.
 
 Server polish:
 
@@ -450,5 +456,4 @@ Scaling:
 
 - Move uploads from local filesystem to object storage.
 - Move chunking/embedding generation to a background job.
-- Add a re-chunk/re-embed admin script for existing documents.
 - Add backup/restore documentation and migration rollback practice.

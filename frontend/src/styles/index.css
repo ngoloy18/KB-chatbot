@@ -223,4 +223,118 @@ button:disabled {
     font-size: 0.75rem;
     font-weight: 900;
   }
+
+  .markdown-message {
+    display: grid;
+    gap: 12px;
+    color: #172A2A;
+    font-size: 0.95rem;
+    line-height: 1.75;
+  }
+
+  .markdown-message > :first-child {
+    margin-top: 0;
+  }
+
+  .markdown-message > :last-child {
+    margin-bottom: 0;
+  }
+
+  .markdown-message h1,
+  .markdown-message h2,
+  .markdown-message h3,
+  .markdown-message h4 {
+    color: #172A2A;
+    font-weight: 900;
+    line-height: 1.25;
+  }
+
+  .markdown-message h1 {
+    font-size: 1.35rem;
+  }
+
+  .markdown-message h2 {
+    font-size: 1.16rem;
+  }
+
+  .markdown-message h3,
+  .markdown-message h4 {
+    font-size: 1rem;
+  }
+
+  .markdown-message p {
+    margin: 0;
+  }
+
+  .markdown-message ul,
+  .markdown-message ol {
+    margin: 0;
+    padding-left: 1.35rem;
+  }
+
+  .markdown-message li + li {
+    margin-top: 4px;
+  }
+
+  .markdown-message a {
+    color: #0F766E;
+    font-weight: 850;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .markdown-message blockquote {
+    margin: 0;
+    border-left: 3px solid #BFD4D2;
+    padding-left: 12px;
+    color: #5F6F6D;
+  }
+
+  .markdown-message pre {
+    max-width: 100%;
+    overflow-x: auto;
+    border: 1px solid #DDE7E6;
+    border-radius: 8px;
+    background: #0E1F1E;
+    padding: 14px;
+    color: #E7F8F5;
+    font-size: 0.86rem;
+    line-height: 1.65;
+  }
+
+  .markdown-message pre code {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+  }
+
+  .markdown-message :not(pre) > code {
+    border-radius: 6px;
+    background: #E8F3F2;
+    padding: 2px 6px;
+    color: #115E59;
+    font-size: 0.88em;
+    font-weight: 800;
+  }
+
+  .markdown-message table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    white-space: nowrap;
+  }
+
+  .markdown-message th,
+  .markdown-message td {
+    border: 1px solid #DDE7E6;
+    padding: 8px 10px;
+    text-align: left;
+  }
+
+  .markdown-message th {
+    background: #EEF8F8;
+    color: #172A2A;
+    font-weight: 900;
+  }
 }
