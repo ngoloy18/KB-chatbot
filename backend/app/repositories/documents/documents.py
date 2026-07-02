@@ -5,7 +5,7 @@ import json
 import math
 from uuid import UUID
 
-from sqlalchemy import and_, delete, false, func, select, text
+from sqlalchemy import and_, delete, false, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -394,6 +394,72 @@ class DocumentRepository:
             for chunk_id in chunk_ids
             if chunk_id in match_by_chunk_id
         ]
+
+    async def expand_chunk_neighbors(
+        self,
+        db: AsyncSession,
+        matches: list[DocumentChunkMatch],
+        neighbor_window: int,
+    ) -> list[DocumentChunkMatch]:
+        """Add adjacent chunks from already-matched documents."""
+
+        if neighbor_window <= 0 or not matches:
+            return matches
+
+        neighbor_filters = [
+            and_(
+                DocumentChunk.document_id == match.document.id,
+                DocumentChunk.chunk_index.between(
+                    max(match.chunk.chunk_index - neighbor_window, 0),
+                    match.chunk.chunk_index + neighbor_window,
+                ),
+            )
+            for match in matches
+        ]
+        neighbor_query = (
+            select(DocumentChunk, Document)
+            .join(Document)
+            .join(DocumentCategoryModel)
+            .options(selectinload(Document.category))
+            .where(or_(*neighbor_filters))
+            .where(Document.status == DOCUMENT_STATUS_READY)
+            .where(Document.is_deleted.is_(False))
+        )
+        neighbor_rows = (await db.execute(neighbor_query)).all()
+        neighbor_by_key = {
+            (document.id, chunk.chunk_index): (chunk, document)
+            for chunk, document in neighbor_rows
+        }
+        original_by_key = {
+            (match.document.id, match.chunk.chunk_index): match
+            for match in matches
+        }
+
+        expanded_matches: list[DocumentChunkMatch] = []
+        seen_chunk_ids: set[UUID] = set()
+        for match in matches:
+            first_neighbor_index = max(match.chunk.chunk_index - neighbor_window, 0)
+            last_neighbor_index = match.chunk.chunk_index + neighbor_window
+            for chunk_index in range(first_neighbor_index, last_neighbor_index + 1):
+                key = (match.document.id, chunk_index)
+                if key in original_by_key:
+                    expanded_match = original_by_key[key]
+                elif key in neighbor_by_key:
+                    neighbor_chunk, neighbor_document = neighbor_by_key[key]
+                    expanded_match = DocumentChunkMatch(
+                        chunk=neighbor_chunk,
+                        document=neighbor_document,
+                        similarity_score=match.similarity_score,
+                    )
+                else:
+                    continue
+
+                if expanded_match.chunk.id in seen_chunk_ids:
+                    continue
+                seen_chunk_ids.add(expanded_match.chunk.id)
+                expanded_matches.append(expanded_match)
+
+        return expanded_matches
 
     async def user_has_document_permission(
         self,

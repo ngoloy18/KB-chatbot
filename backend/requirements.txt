@@ -1,8 +1,5 @@
 fastapi==0.136.3
-httpx2==2.3.0
 pydantic==2.13.4
-pydantic_core==2.46.4
-PyMySQL==1.1.2
 python-multipart==0.0.20
 python-dotenv==1.2.2
 uvicorn==0.49.0
@@ -13,7 +10,7 @@ email-validator==2.3.0
 bcrypt==4.0.1
 passlib[bcrypt]==1.7.4
 python-jose[cryptography]==3.5.0
-google-genai
-pgvector
-pytest
-pytest-asyncio
+google-genai==2.10.0
+pgvector==0.4.2
+pytest==9.1.1
+pytest-asyncio==1.4.0

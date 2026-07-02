@@ -20,10 +20,11 @@ feature folders so it can stay understandable while still being simple to run
 for a class project or mentor demo.
 
 The backend is not production-perfect yet. The biggest remaining product work is
-the frontend. The biggest remaining production work is Docker/deploy setup,
-Redis-backed rate limiting, structured request logging, backup/restore practice,
-object storage/background document processing, and a few account-security polish
-items such as password change and revoke-all-sessions.
+frontend/backend integration polish and end-to-end demo testing. The biggest
+remaining production work is Docker/deploy setup, Redis-backed rate limiting,
+structured request logging, backup/restore practice, object storage/background
+document processing, and a few account-security polish items such as password
+change and revoke-all-sessions.
 
 Public document responses intentionally do not expose internal storage
 `file_path` values. Uploaded file paths stay server-side only so the API does
@@ -35,6 +36,8 @@ not leak local filesystem details.
 - PostgreSQL running locally
 - `pip`
 - Project dependencies from `requirements.txt`
+- A `.env` copied from `.env.example`
+- Node.js/npm only if you also run the frontend in `../frontend`
 
 ## Database
 
@@ -98,9 +101,11 @@ EMBEDDINGS_ENABLED=false
 EMBEDDING_PROVIDER=gemini
 GEMINI_EMBEDDING_MODEL=your_embedding_model_from_ai_studio
 EMBEDDING_DIMENSIONS=0
-RAG_TOP_K=5
-RAG_MAX_CONTEXT_TOKENS=1800
+RAG_TOP_K=10
+RAG_MAX_CONTEXT_TOKENS=3200
 RAG_MIN_SIMILARITY=0
+RAG_NEIGHBOR_WINDOW=1
+RAG_DEBUG=false
 DATABASE_URL=postgresql+asyncpg://postgres:your_password@localhost:5123/chatbot_db
 DATABASE_ECHO=false
 DATABASE_SCHEMA=kb
@@ -152,6 +157,10 @@ EMAIL_RETURN_DEV_TOKENS=true
 `EMAIL_RETURN_DEV_TOKENS=true` keeps verification and reset tokens visible in
 Swagger while also sending emails. In production, set it to `false`.
 
+The frontend consumes the links generated from `FRONTEND_VERIFY_EMAIL_URL` and
+`FRONTEND_RESET_PASSWORD_URL`. Keep these pointed at the React app while running
+the full product locally.
+
 `SENSITIVE_RATE_LIMIT_*` settings apply stricter limits to endpoints that are
 easy to abuse, such as login, register, password reset, resend verification, and
 document upload.
@@ -171,8 +180,11 @@ embeddings and makes `/api/chat` retrieve top matching chunks before calling the
 chat model. `GEMINI_EMBEDDING_MODEL` should be set from AI Studio; the app does
 not hard-code an embedding model. `EMBEDDING_DIMENSIONS=0` means infer the
 dimension from stored embeddings; set it only when you intentionally request a
-specific embedding output size. `RAG_TOP_K`, `RAG_MAX_CONTEXT_TOKENS`, and
-`RAG_MIN_SIMILARITY` control retrieval size and filtering.
+specific embedding output size. `RAG_TOP_K`, `RAG_MAX_CONTEXT_TOKENS`,
+`RAG_MIN_SIMILARITY`, and `RAG_NEIGHBOR_WINDOW` control retrieval size,
+filtering, and how many adjacent chunks are included around each match. Set
+`RAG_DEBUG=true` locally when you want the API logs to show retrieved chunk ids,
+similarity scores, token counts, and previews.
 
 The `0008` migration stores embeddings and tries to enable PostgreSQL `vector`
 support when the server has pgvector installed. If your local PostgreSQL does
@@ -190,6 +202,16 @@ configuring `GEMINI_EMBEDDING_MODEL`, backfill current chunks manually:
 ```powershell
 py scripts/backfill_embeddings.py --limit 20
 ```
+
+If chunking rules, chunk size, overlap, or Markdown heading logic change,
+rebuild stored chunks instead:
+
+```powershell
+py scripts/rechunk_documents.py --limit 20
+```
+
+When `EMBEDDINGS_ENABLED=true`, rechunking also regenerates embeddings for the
+new chunks. Use `--document-id <uuid>` to reprocess one document.
 
 `EMAIL_VERIFICATION_TOKEN_RETENTION_DAYS=7` and
 `PASSWORD_RESET_TOKEN_RETENTION_DAYS=7` mean used auth token rows can be kept
@@ -248,6 +270,7 @@ py tests/test_ask_flow.py
 py tests/test_chat_flow.py
 py tests/test_token_cleanup.py
 py tests/test_user_soft_delete.py
+py tests/test_user_hard_delete.py
 ```
 
 Expected success output includes:
@@ -269,6 +292,7 @@ Ask flow OK.
 Chat flow OK.
 Token cleanup OK.
 User soft delete OK.
+User hard delete OK.
 ```
 
 For live API tests, start the server first:
