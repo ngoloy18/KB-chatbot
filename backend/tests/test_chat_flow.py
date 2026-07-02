@@ -262,6 +262,34 @@ async def check_chat_flow() -> None:
             if messages[3].content != "happy answer":
                 raise AssertionError("Second assistant message should be preserved.")
 
+            latest_page = await chat_service.get_session(
+                db=db,
+                user_id=user.id,
+                session_id=happy_response.session_id,
+                page=1,
+                page_size=2,
+            )
+            if latest_page.messages_total != 4:
+                raise AssertionError("Paged session history should report total messages.")
+            if [message.content for message in latest_page.messages] != [
+                second_question,
+                "happy answer",
+            ]:
+                raise AssertionError("Page 1 should return the latest messages in order.")
+
+            older_page = await chat_service.get_session(
+                db=db,
+                user_id=user.id,
+                session_id=happy_response.session_id,
+                page=2,
+                page_size=2,
+            )
+            if [message.content for message in older_page.messages] != [
+                first_question,
+                "happy answer",
+            ]:
+                raise AssertionError("Page 2 should return older messages in order.")
+
             no_docs_provider = StubAIProvider(answer="should not be called")
             chat_service_module.create_ai_provider = lambda: no_docs_provider
             no_docs_response = await chat_service.chat(

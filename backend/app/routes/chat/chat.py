@@ -86,6 +86,8 @@ async def list_chat_sessions(
 )
 async def get_chat_session(
     session_id: UUID,
+    page: int = Query(default=DEFAULT_PAGE, ge=1),
+    page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ChatSessionDetailResponse:
@@ -96,6 +98,8 @@ async def get_chat_session(
             db=db,
             user_id=current_user.id,
             session_id=session_id,
+            page=page,
+            page_size=page_size,
         )
     except ChatSessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))

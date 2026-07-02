@@ -109,7 +109,10 @@ export const chatApi = {
     page: params.page || 1,
     page_size: params.page_size || 20,
   })}`),
-  getSession: (sessionId) => request(`/api/chat/sessions/${sessionId}`),
+  getSession: (sessionId, params = {}) => request(`/api/chat/sessions/${sessionId}${buildQuery({
+    page: params.page || 1,
+    page_size: params.page_size || 20,
+  })}`),
   deleteSession: (sessionId) => request(`/api/chat/sessions/${sessionId}`, {
     method: "DELETE",
   }),

@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.ai import AI_RUN_STATUS_FAILED, AI_RUN_STATUS_SUCCESS
 from app.constants.chat import CHAT_ROLE_ASSISTANT, CHAT_ROLE_USER
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.core.config import settings
 from app.core.prompts import SYSTEM_PROMPT
 from app.models.database import ChatMessage, ChatSession
@@ -189,6 +190,8 @@ class ChatService:
         db: AsyncSession,
         user_id: UUID,
         session_id: UUID,
+        page: int = DEFAULT_PAGE,
+        page_size: int = DEFAULT_PAGE_SIZE,
     ) -> ChatSessionDetailResponse:
         """Return one user-owned session with messages."""
 
@@ -199,7 +202,12 @@ class ChatService:
         )
         if session is None:
             raise ChatSessionNotFoundError("Chat session not found.")
-        messages = sorted(session.messages, key=lambda message: message.created_at)
+        messages, total = await chat_repository.list_messages_for_session(
+            db,
+            session.id,
+            page,
+            page_size,
+        )
         response = chat_session_to_response(session)
         return ChatSessionDetailResponse(
             id=response.id,
@@ -207,6 +215,9 @@ class ChatService:
             created_at=response.created_at,
             updated_at=response.updated_at,
             messages=[chat_message_to_response(message) for message in messages],
+            messages_total=total,
+            messages_page=page,
+            messages_page_size=page_size,
         )
 
     async def delete_session(

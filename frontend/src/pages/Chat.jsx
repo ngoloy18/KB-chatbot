@@ -1,6 +1,6 @@
-import { History, MessageSquare, Plus, Send, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, History, MessageSquare, Plus, Send, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { Component, useCallback, useEffect, useState } from "react";
+import { Component, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 
@@ -9,28 +9,59 @@ import { SkeletonBlock } from "../components/Skeleton.jsx";
 import { StatusChip } from "../components/StatusChip.jsx";
 import { formatDate } from "../utils/format.js";
 
+const SESSION_PAGE_SIZE = 20;
+const MESSAGE_PAGE_SIZE = 20;
+
+function mergeById(items) {
+  const seen = new Set();
+  return items.filter((item) => {
+    if (!item?.id || seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
 export function Chat() {
   const [messages, setMessages] = useState([]);
+  const [messagePage, setMessagePage] = useState(1);
+  const [messageTotal, setMessageTotal] = useState(0);
   const [question, setQuestion] = useState("");
   const [sessions, setSessions] = useState([]);
+  const [sessionPage, setSessionPage] = useState(1);
+  const [sessionsTotal, setSessionsTotal] = useState(0);
   const [sessionId, setSessionId] = useState("");
   const [sessionTitle, setSessionTitle] = useState("");
   const [sources, setSources] = useState([]);
   const [modelUsed, setModelUsed] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(true);
+  const [loadingMoreSessions, setLoadingMoreSessions] = useState(false);
   const [loadingSession, setLoadingSession] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const messagesPanelRef = useRef(null);
+  const pendingScrollRef = useRef(null);
 
-  const loadSessions = useCallback(async () => {
-    setLoadingSessions(true);
+  const loadSessions = useCallback(async ({ page = 1, append = false } = {}) => {
+    if (append) {
+      setLoadingMoreSessions(true);
+    } else {
+      setLoadingSessions(true);
+    }
     try {
-      const data = await chatApi.sessions();
-      setSessions(data.items || []);
+      const data = await chatApi.sessions({ page, page_size: SESSION_PAGE_SIZE });
+      const items = data.items || [];
+      setSessions((current) => (append ? mergeById([...current, ...items]) : items));
+      setSessionsTotal(data.total || items.length);
+      setSessionPage(page);
     } catch (error) {
       setFeedback(error.message);
     } finally {
-      setLoadingSessions(false);
+      if (append) {
+        setLoadingMoreSessions(false);
+      } else {
+        setLoadingSessions(false);
+      }
     }
   }, []);
 
@@ -38,20 +69,72 @@ export function Chat() {
     loadSessions();
   }, [loadSessions]);
 
+  useLayoutEffect(() => {
+    const container = messagesPanelRef.current;
+    const pendingScroll = pendingScrollRef.current;
+    if (!container || !pendingScroll) return;
+
+    if (pendingScroll === "bottom") {
+      container.scrollTop = container.scrollHeight;
+    } else if (pendingScroll.type === "preserve") {
+      container.scrollTop = pendingScroll.scrollTop + (container.scrollHeight - pendingScroll.scrollHeight);
+    }
+    pendingScrollRef.current = null;
+  }, [messages]);
+
   async function openSession(nextSessionId) {
     setLoadingSession(true);
     setFeedback("");
+    setMessages([]);
+    setMessagePage(1);
+    setMessageTotal(0);
     try {
-      const session = await chatApi.getSession(nextSessionId);
+      const session = await chatApi.getSession(nextSessionId, {
+        page: 1,
+        page_size: MESSAGE_PAGE_SIZE,
+      });
       setSessionId(session.id);
       setSessionTitle(session.title || "Saved chat");
+      pendingScrollRef.current = "bottom";
       setMessages(session.messages || []);
+      setMessagePage(session.messages_page || 1);
+      setMessageTotal(session.messages_total ?? (session.messages || []).length);
       setSources([]);
       setModelUsed("");
     } catch (error) {
       setFeedback(error.message);
     } finally {
       setLoadingSession(false);
+    }
+  }
+
+  async function loadOlderMessages() {
+    if (!sessionId || loadingOlder || messages.length >= messageTotal) return;
+
+    const nextPage = messagePage + 1;
+    const container = messagesPanelRef.current;
+    if (container) {
+      pendingScrollRef.current = {
+        type: "preserve",
+        scrollHeight: container.scrollHeight,
+        scrollTop: container.scrollTop,
+      };
+    }
+    setLoadingOlder(true);
+    setFeedback("");
+
+    try {
+      const session = await chatApi.getSession(sessionId, {
+        page: nextPage,
+        page_size: MESSAGE_PAGE_SIZE,
+      });
+      setMessages((current) => mergeById([...(session.messages || []), ...current]));
+      setMessagePage(session.messages_page || nextPage);
+      setMessageTotal(session.messages_total ?? messageTotal);
+    } catch (error) {
+      setFeedback(error.message);
+    } finally {
+      setLoadingOlder(false);
     }
   }
 
@@ -66,7 +149,9 @@ export function Chat() {
       content,
       created_at: new Date().toISOString(),
     };
+    pendingScrollRef.current = "bottom";
     setMessages((current) => [...current, optimisticMessage]);
+    setMessageTotal((current) => current + 1);
     setQuestion("");
     setLoading(true);
     setFeedback("");
@@ -81,8 +166,15 @@ export function Chat() {
       setSessionTitle((current) => current || content.slice(0, 80));
       setSources(response.sources || []);
       setModelUsed(response.model_used || "");
+      setMessagePage(1);
+      setMessageTotal((current) => current + 1);
+      pendingScrollRef.current = "bottom";
       setMessages((current) => [
-        ...current,
+        ...current.map((message) => (
+          message.id === optimisticMessage.id
+            ? { ...message, id: response.user_message_id }
+            : message
+        )),
         {
           id: response.assistant_message_id,
           role: "assistant",
@@ -93,6 +185,7 @@ export function Chat() {
       await loadSessions();
     } catch (error) {
       setFeedback(error.message);
+      setMessageTotal((current) => Math.max(0, current - 1));
       setMessages((current) => current.filter((message) => message.id !== optimisticMessage.id));
     } finally {
       setLoading(false);
@@ -105,6 +198,8 @@ export function Chat() {
     setSources([]);
     setModelUsed("");
     setMessages([]);
+    setMessagePage(1);
+    setMessageTotal(0);
     setFeedback("");
   }
 
@@ -120,8 +215,11 @@ export function Chat() {
     }
   }
 
+  const hasMoreSessions = sessions.length < sessionsTotal;
+  const hasOlderMessages = Boolean(sessionId) && messages.length < messageTotal;
+
   return (
-    <div className="grid h-full min-h-[760px] grid-cols-[280px_minmax(0,1fr)_320px] gap-5 max-[1280px]:grid-cols-1">
+    <div className="grid min-h-0 grid-cols-[280px_minmax(0,1fr)_320px] items-start gap-5 max-[1280px]:grid-cols-1">
       <aside className="rounded-lg border border-med-border bg-white p-4 shadow-soft">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-black text-med-text">Chat history</h2>
@@ -150,10 +248,20 @@ export function Chat() {
               <span className="mt-1 block text-xs font-semibold text-med-muted">{formatDate(session.updated_at)}</span>
             </button>
           ))}
+          {!loadingSessions && hasMoreSessions && (
+            <button
+              className="secondary-button w-full"
+              disabled={loadingMoreSessions}
+              type="button"
+              onClick={() => loadSessions({ page: sessionPage + 1, append: true })}
+            >
+              <ChevronDown size={16} /> {loadingMoreSessions ? "Loading..." : "More chats"}
+            </button>
+          )}
         </div>
       </aside>
 
-      <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-lg border border-med-border bg-white shadow-soft">
+      <section className="grid h-[calc(100vh-190px)] min-h-[520px] min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-lg border border-med-border bg-white shadow-soft max-sm:h-[calc(100vh-150px)] max-sm:min-h-[460px]">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-med-border px-6 py-5">
           <div>
             <h1 className="text-xl font-black text-med-text">{sessionTitle || "New chat"}</h1>
@@ -165,8 +273,15 @@ export function Chat() {
           </div>
         </header>
 
-        <div className="min-h-0 overflow-auto px-7 py-6">
+        <div className="min-h-0 overflow-auto px-7 py-6" ref={messagesPanelRef}>
           {loadingSession && <p className="rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm font-semibold text-sky-700">Loading session...</p>}
+          {!loadingSession && hasOlderMessages && (
+            <div className="mb-5 flex justify-center">
+              <button className="secondary-button" disabled={loadingOlder} type="button" onClick={loadOlderMessages}>
+                <ChevronUp size={16} /> {loadingOlder ? "Loading..." : "Older messages"}
+              </button>
+            </div>
+          )}
           {!loadingSession && messages.length === 0 && (
             <div className="grid min-h-[360px] place-items-center text-center">
               <div className="max-w-md">
@@ -182,7 +297,7 @@ export function Chat() {
               return (
                 <article className={`flex gap-4 ${isUserMessage ? "justify-end" : "justify-start"}`} key={message.id || `${message.role}-${message.created_at}`}>
                   {!isUserMessage && <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border-2 border-med-primary text-2xl font-black text-med-primary">+</span>}
-                  <div className={`max-w-3xl rounded-lg border border-med-border p-4 ${isUserMessage ? "bg-med-bg" : "bg-white"}`}>
+                  <div className={`max-w-3xl rounded-lg border border-med-border p-4 break-words ${isUserMessage ? "bg-med-bg" : "bg-white"}`}>
                     <p className="mb-2 text-sm font-black text-med-text">{isUserMessage ? "You" : "KB Chat Bot Dev AI"}</p>
                     {!isUserMessage ? (
                       <MessageRenderBoundary fallback={message.content}>

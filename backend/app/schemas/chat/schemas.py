@@ -3,6 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.models.database import ChatMessage, ChatSession
 
 
@@ -56,6 +57,9 @@ class ChatSessionDetailResponse(ChatSessionResponse):
     """One user-owned chat session with its messages."""
 
     messages: list[ChatMessageResponse]
+    messages_total: int = 0
+    messages_page: int = DEFAULT_PAGE
+    messages_page_size: int = DEFAULT_PAGE_SIZE
 
 
 def chat_session_to_response(session: ChatSession) -> ChatSessionResponse:

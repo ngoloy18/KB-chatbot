@@ -1,8 +1,8 @@
-import { Eye, RefreshCcw, Search, ShieldCheck, Upload, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Eye, RefreshCcw, Search, ShieldCheck, Trash2, Upload, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { documentsApi } from "../api/client.js";
+import { documentPermissionsApi, documentsApi, usersApi } from "../api/client.js";
 import { Modal } from "../components/Modal.jsx";
 import { TableSkeletonRows } from "../components/Skeleton.jsx";
 import { StatusChip } from "../components/StatusChip.jsx";
@@ -36,14 +36,22 @@ export function Documents() {
   const [total, setTotal] = useState(0);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [toast, setToast] = useState("");
+  const [toastTitle, setToastTitle] = useState("");
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [bulkAccessLoading, setBulkAccessLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [accessForm, setAccessForm] = useState({ userId: "", permission: "read" });
+  const selectAllRef = useRef(null);
   const currentUser = getCurrentUser();
   const isAdmin = currentUser?.role === "admin";
 
   const loadDocuments = useCallback(async () => {
     setLoading(true);
     setLoadError("");
+    setSelectedIds([]);
     try {
       const data = await documentsApi.list({
         name: query.trim(),
@@ -64,17 +72,139 @@ export function Documents() {
     loadDocuments();
   }, [loadDocuments]);
 
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    let isMounted = true;
+    usersApi.list({ page_size: 100 })
+      .then((data) => {
+        if (!isMounted) return;
+        const items = data.items || [];
+        setUsers(items);
+        setAccessForm((current) => ({
+          ...current,
+          userId: current.userId || items[0]?.id || "",
+        }));
+      })
+      .catch((error) => {
+        if (isMounted) setLoadError(error.message);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAdmin]);
+
+  const selectedDocuments = documents.filter((document) => selectedIds.includes(document.id));
+  const selectedCount = selectedDocuments.length;
+  const allVisibleSelected = documents.length > 0 && selectedCount === documents.length;
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = selectedCount > 0 && selectedCount < documents.length;
+    }
+  }, [documents.length, selectedCount]);
+
+  function showToast(title, message) {
+    setToastTitle(title);
+    setToast(message);
+    window.setTimeout(() => setToast(""), 2600);
+  }
+
   function handleUploaded(document) {
     setDocuments((current) => [document, ...current]);
     setTotal((current) => current + 1);
     setUploadOpen(false);
-    setToast("Upload successful. Document saved to the knowledge base.");
-    window.setTimeout(() => setToast(""), 2600);
+    showToast("Upload successful", "Document saved to the knowledge base.");
   }
 
   function submitFilters(event) {
     event.preventDefault();
     loadDocuments();
+  }
+
+  function toggleDocument(documentId) {
+    setSelectedIds((current) => (
+      current.includes(documentId)
+        ? current.filter((id) => id !== documentId)
+        : [...current, documentId]
+    ));
+  }
+
+  function toggleVisibleDocuments() {
+    const visibleIds = documents.map((document) => document.id);
+    if (allVisibleSelected) {
+      setSelectedIds((current) => current.filter((id) => !visibleIds.includes(id)));
+      return;
+    }
+
+    setSelectedIds((current) => Array.from(new Set([...current, ...visibleIds])));
+  }
+
+  async function deleteSelectedDocuments() {
+    if (!isAdmin || selectedDocuments.length === 0) return;
+    const deleteCount = selectedDocuments.length;
+    if (!window.confirm(`Delete ${deleteCount} selected document${deleteCount === 1 ? "" : "s"}?`)) return;
+
+    setBulkActionLoading(true);
+    setLoadError("");
+    try {
+      const results = await Promise.allSettled(
+        selectedDocuments.map((document) => (
+          documentsApi.remove(document.id).then(() => document.id)
+        )),
+      );
+      const deletedIds = results
+        .filter((result) => result.status === "fulfilled")
+        .map((result) => result.value);
+      const failedCount = results.length - deletedIds.length;
+
+      if (deletedIds.length > 0) {
+        setDocuments((current) => current.filter((document) => !deletedIds.includes(document.id)));
+        setSelectedIds((current) => current.filter((id) => !deletedIds.includes(id)));
+        setTotal((current) => Math.max(0, current - deletedIds.length));
+        showToast(
+          "Documents deleted",
+          `${deletedIds.length} document${deletedIds.length === 1 ? "" : "s"} moved out of the active list.`,
+        );
+      }
+      if (failedCount > 0) {
+        setLoadError(`${failedCount} selected document${failedCount === 1 ? "" : "s"} could not be deleted.`);
+      }
+    } finally {
+      setBulkActionLoading(false);
+    }
+  }
+
+  async function grantSelectedDocumentsAccess() {
+    if (!isAdmin || selectedDocuments.length === 0 || !accessForm.userId) return;
+
+    setBulkAccessLoading(true);
+    setLoadError("");
+    try {
+      const results = await Promise.allSettled(
+        selectedDocuments.map((document) => (
+          documentPermissionsApi.upsert(document.id, {
+            user_id: accessForm.userId,
+            permission: accessForm.permission,
+          })
+        )),
+      );
+      const savedCount = results.filter((result) => result.status === "fulfilled").length;
+      const failedCount = results.length - savedCount;
+
+      if (savedCount > 0) {
+        showToast(
+          "Access granted",
+          `${accessForm.permission} access saved for ${savedCount} document${savedCount === 1 ? "" : "s"}.`,
+        );
+      }
+      if (failedCount > 0) {
+        setLoadError(`${failedCount} selected document${failedCount === 1 ? "" : "s"} could not be updated.`);
+      }
+    } finally {
+      setBulkAccessLoading(false);
+    }
   }
 
   return (
@@ -108,11 +238,69 @@ export function Documents() {
           </button>
         </form>
 
+        {selectedCount > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-med-border bg-teal-50/70 px-4 py-3">
+            <p className="text-sm font-black text-med-primary">
+              {selectedCount} selected
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {selectedCount === 1 && (
+                <Link className="secondary-button" to={`/documents/${selectedDocuments[0].id}`}>
+                  <Eye size={16} /> View
+                </Link>
+              )}
+              {isAdmin && (
+                <>
+                  <select
+                    className="input min-h-[42px] w-56"
+                    disabled={bulkAccessLoading || users.length === 0}
+                    value={accessForm.userId}
+                    onChange={(event) => setAccessForm((current) => ({ ...current, userId: event.target.value }))}
+                  >
+                    {users.length === 0 && <option value="">No users</option>}
+                    {users.map((user) => (
+                      <option key={user.id} value={user.id}>{user.full_name || user.email}</option>
+                    ))}
+                  </select>
+                  <select
+                    className="input min-h-[42px] w-32"
+                    disabled={bulkAccessLoading}
+                    value={accessForm.permission}
+                    onChange={(event) => setAccessForm((current) => ({ ...current, permission: event.target.value }))}
+                  >
+                    <option value="read">Read</option>
+                    <option value="write">Write</option>
+                    <option value="owner">Owner</option>
+                  </select>
+                  <button className="secondary-button" disabled={bulkAccessLoading || !accessForm.userId} type="button" onClick={grantSelectedDocumentsAccess}>
+                    <ShieldCheck size={16} /> {bulkAccessLoading ? "Saving..." : "Grant access"}
+                  </button>
+                  <button className="danger-button" disabled={bulkActionLoading} type="button" onClick={deleteSelectedDocuments}>
+                    <Trash2 size={16} /> {bulkActionLoading ? "Deleting..." : "Delete selected"}
+                  </button>
+                </>
+              )}
+              <button className="secondary-button" type="button" onClick={() => setSelectedIds([])}>
+                <X size={16} /> Clear
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="max-h-[356px] overflow-auto">
           <table className="w-full min-w-[900px] border-collapse">
             <thead>
               <tr className="text-left text-xs font-black uppercase tracking-wide text-med-muted">
-                <th className="sticky top-0 z-10 border-b border-med-border bg-white p-4"><input type="checkbox" /></th>
+                <th className="sticky top-0 z-10 border-b border-med-border bg-white p-4">
+                  <input
+                    aria-label={allVisibleSelected ? "Clear visible document selection" : "Select all visible documents"}
+                    checked={allVisibleSelected}
+                    disabled={loading || documents.length === 0}
+                    onChange={toggleVisibleDocuments}
+                    ref={selectAllRef}
+                    type="checkbox"
+                  />
+                </th>
                 <th className="sticky top-0 z-10 border-b border-med-border bg-white p-4">Document name</th>
                 <th className="sticky top-0 z-10 border-b border-med-border bg-white p-4">Category</th>
                 <th className="sticky top-0 z-10 border-b border-med-border bg-white p-4">Status</th>
@@ -124,8 +312,15 @@ export function Documents() {
             <tbody>
               {loading && <TableSkeletonRows columns={7} rows={4} />}
               {!loading && documents.map((document) => (
-                <tr className="hover:bg-med-bg" key={document.id}>
-                  <td className="border-b border-med-border p-4"><input type="checkbox" /></td>
+                <tr className={`hover:bg-med-bg ${selectedIds.includes(document.id) ? "bg-teal-50/70" : ""}`} key={document.id}>
+                  <td className="border-b border-med-border p-4">
+                    <input
+                      aria-label={`Select ${document.name}`}
+                      checked={selectedIds.includes(document.id)}
+                      onChange={() => toggleDocument(document.id)}
+                      type="checkbox"
+                    />
+                  </td>
                   <td className="border-b border-med-border p-4">
                     <Link className="font-black text-med-text hover:text-med-primary" to={`/documents/${document.id}`}>{document.name}</Link>
                     <p className="text-sm text-med-muted">{document.file_name || "knowledge-base.md"}</p>
@@ -159,7 +354,7 @@ export function Documents() {
 
         <footer className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 text-sm text-med-muted">
           <span>{loading ? "Loading documents..." : `Showing ${documents.length} of ${total} documents`}</span>
-          <span>Page 1</span>
+          <span>{selectedCount > 0 ? `${selectedCount} selected` : "Page 1"}</span>
         </footer>
       </section>
 
@@ -167,7 +362,7 @@ export function Documents() {
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 w-[min(420px,calc(100vw-48px))] rounded-xl border border-med-border bg-white p-4 shadow-glass">
           <button className="absolute right-3 top-3 text-med-muted" type="button" onClick={() => setToast("")}><X size={16} /></button>
-          <p className="font-black text-med-text">Upload successful</p>
+          <p className="font-black text-med-text">{toastTitle || "Notice"}</p>
           <p className="mt-1 text-sm text-med-muted">{toast}</p>
           <div className="mt-4 h-1 rounded-full bg-med-success" />
         </div>

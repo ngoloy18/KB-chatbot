@@ -2,7 +2,6 @@ from uuid import UUID
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.models.database import AIRun, ChatMessage, ChatSession, MessageSource
 
@@ -44,17 +43,40 @@ class ChatRepository:
         session_id: UUID,
         user_id: UUID,
     ) -> ChatSession | None:
-        """Return a user-owned session with messages loaded."""
+        """Return a user-owned session for a detail view."""
 
         query = (
             select(ChatSession)
-            .options(selectinload(ChatSession.messages))
             .where(
                 ChatSession.id == session_id,
                 ChatSession.user_id == user_id,
             )
         )
         return await db.scalar(query)
+
+    async def list_messages_for_session(
+        self,
+        db: AsyncSession,
+        session_id: UUID,
+        page: int,
+        page_size: int,
+    ) -> tuple[list[ChatMessage], int]:
+        """Return one page from the newest messages, ordered for display."""
+
+        filters = [ChatMessage.session_id == session_id]
+        total = await db.scalar(
+            select(func.count()).select_from(ChatMessage).where(*filters)
+        )
+        query = (
+            select(ChatMessage)
+            .where(*filters)
+            .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        rows = list((await db.scalars(query)).all())
+        rows.reverse()
+        return rows, total or 0
 
     async def list_sessions_for_user(
         self,
