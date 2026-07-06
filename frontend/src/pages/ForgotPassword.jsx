@@ -61,7 +61,7 @@ export function ForgotPassword() {
             Account email
             <span className="relative block">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-med-muted" size={18} />
-              <input className="input pl-12" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="developer@hospital.org" required />
+              <input className="input pl-12" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="developer@company.com" required />
             </span>
           </label>
 

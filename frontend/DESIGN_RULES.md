@@ -2,9 +2,9 @@
 
 ## Direction
 
-Build a clinical knowledge workstation:
+Build a developer knowledge workstation:
 
-- Healthcare colorway with white, teal, blue, and soft gray.
+- Clean technical colorway with white, teal, blue, and soft gray.
 - Light Apple-style glass only for login/auth panels, top bars, sidebars, and
   source panels.
 - No AI-looking gradients, glow effects, hero page, or chatbot mascot.

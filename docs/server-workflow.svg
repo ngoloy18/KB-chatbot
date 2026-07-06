@@ -1,0 +1,262 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1320" viewBox="0 0 1900 1320" role="img" aria-labelledby="title desc">
+  <title id="title">KB Chat Bot Dev Server Workflow</title>
+  <desc id="desc">Detailed workflow diagram for the FastAPI server, from browser requests through middleware, routes, services, repositories, database, uploads, email, and AI providers.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#115E59" />
+    </marker>
+    <marker id="mutedArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6B7280" />
+    </marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#172A2A" flood-opacity="0.12" />
+    </filter>
+    <style>
+      .bg { fill: #F7FAFA; }
+      .panel { fill: #FFFFFF; stroke: #DDE7E6; stroke-width: 2; filter: url(#shadow); }
+      .panel-soft { fill: #FFFFFF; stroke: #DDE7E6; stroke-width: 2; }
+      .accent { fill: #0F766E; }
+      .accent-soft { fill: #E8F3F2; stroke: #BFD4D2; stroke-width: 2; }
+      .blue-soft { fill: #EEF7FF; stroke: #C7E6FA; stroke-width: 2; }
+      .amber-soft { fill: #FFF7E8; stroke: #F6D28B; stroke-width: 2; }
+      .green-soft { fill: #EEFBEF; stroke: #BEE7C6; stroke-width: 2; }
+      .red-soft { fill: #FFF1F1; stroke: #F4B6B6; stroke-width: 2; }
+      .purple-soft { fill: #F4F0FF; stroke: #D7CCFF; stroke-width: 2; }
+      .title { fill: #172A2A; font: 900 34px Inter, Segoe UI, Arial, sans-serif; }
+      .subtitle { fill: #5F6F6D; font: 600 16px Inter, Segoe UI, Arial, sans-serif; }
+      .section-title { fill: #115E59; font: 900 20px Inter, Segoe UI, Arial, sans-serif; }
+      .box-title { fill: #172A2A; font: 900 17px Inter, Segoe UI, Arial, sans-serif; }
+      .text { fill: #172A2A; font: 600 13px Inter, Segoe UI, Arial, sans-serif; }
+      .small { fill: #5F6F6D; font: 600 12px Inter, Segoe UI, Arial, sans-serif; }
+      .tiny { fill: #5F6F6D; font: 600 11px Inter, Segoe UI, Arial, sans-serif; }
+      .label { fill: #115E59; font: 900 12px Inter, Segoe UI, Arial, sans-serif; }
+      .white { fill: #FFFFFF; font: 900 14px Inter, Segoe UI, Arial, sans-serif; }
+      .arrow { stroke: #115E59; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .muted-arrow { stroke: #6B7280; stroke-width: 2.2; fill: none; marker-end: url(#mutedArrow); stroke-dasharray: 7 6; }
+      .lane { fill: #ECFAFA; stroke: #DDE7E6; stroke-width: 1.5; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1900" height="1320" />
+
+  <text class="title" x="70" y="62">Server Workflow: FastAPI Knowledge Base Chatbot</text>
+  <text class="subtitle" x="70" y="92">Runtime flow from browser request to auth, route handlers, services, repositories, PostgreSQL, local uploads, SMTP, and AI provider responses.</text>
+
+  <rect class="lane" x="50" y="120" width="320" height="1040" rx="18" />
+  <rect class="lane" x="400" y="120" width="320" height="1040" rx="18" />
+  <rect class="lane" x="750" y="120" width="360" height="1040" rx="18" />
+  <rect class="lane" x="1140" y="120" width="360" height="1040" rx="18" />
+  <rect class="lane" x="1530" y="120" width="320" height="1040" rx="18" />
+
+  <text class="section-title" x="75" y="155">Client</text>
+  <text class="section-title" x="425" y="155">FastAPI App Shell</text>
+  <text class="section-title" x="775" y="155">Routes and Dependencies</text>
+  <text class="section-title" x="1165" y="155">Service Layer</text>
+  <text class="section-title" x="1555" y="155">Storage and External Systems</text>
+
+  <rect class="panel" x="75" y="185" width="270" height="190" rx="14" />
+  <text class="box-title" x="98" y="218">React/Vite frontend</text>
+  <text class="text" x="98" y="248">- Login/register screens</text>
+  <text class="text" x="98" y="272">- Documents + detail pages</text>
+  <text class="text" x="98" y="296">- Chat page + session list</text>
+  <text class="text" x="98" y="320">- Admin users screen</text>
+  <text class="text" x="98" y="344">- Sends JSON or multipart files</text>
+
+  <rect class="panel-soft" x="75" y="405" width="270" height="175" rx="14" />
+  <text class="box-title" x="98" y="438">Request envelope</text>
+  <text class="text" x="98" y="468">- Authorization: Bearer access JWT</text>
+  <text class="text" x="98" y="492">- Refresh token only for refresh/logout</text>
+  <text class="text" x="98" y="516">- Query params for pagination/search</text>
+  <text class="text" x="98" y="540">- Form-data for document uploads</text>
+
+  <rect class="panel-soft" x="75" y="610" width="270" height="145" rx="14" />
+  <text class="box-title" x="98" y="643">Response envelope</text>
+  <text class="text" x="98" y="673">- JSON response models</text>
+  <text class="text" x="98" y="697">- 204 for deletes</text>
+  <text class="text" x="98" y="721">- 4xx/5xx mapped from service errors</text>
+
+  <rect class="panel" x="425" y="185" width="270" height="220" rx="14" />
+  <text class="box-title" x="448" y="218">app.main startup</text>
+  <text class="text" x="448" y="248">- Load settings from environment</text>
+  <text class="text" x="448" y="272">- Create async SQLAlchemy engine</text>
+  <text class="text" x="448" y="296">- Startup DB ping: SELECT 1</text>
+  <text class="text" x="448" y="320">- Register exception handlers</text>
+  <text class="text" x="448" y="344">- Add CORS middleware</text>
+  <text class="text" x="448" y="368">- Add RateLimitMiddleware</text>
+
+  <rect class="panel-soft" x="425" y="435" width="270" height="200" rx="14" />
+  <text class="box-title" x="448" y="468">Routing assembly</text>
+  <text class="text" x="448" y="498">- Main prefix: /api</text>
+  <text class="text" x="448" y="522">- Included routers: auth, users</text>
+  <text class="text" x="448" y="546">- documents + permissions</text>
+  <text class="text" x="448" y="570">- chat, ask, status endpoint</text>
+  <text class="text" x="448" y="594">- Root /ask alias retained</text>
+
+  <rect class="panel-soft amber-soft" x="425" y="665" width="270" height="180" rx="14" />
+  <text class="box-title" x="448" y="698">Middleware decisions</text>
+  <text class="text" x="448" y="728">- Origin allowed?</text>
+  <text class="text" x="448" y="752">- Client under rate window?</text>
+  <text class="text" x="448" y="776">- Sensitive endpoints have lower limit</text>
+  <text class="text" x="448" y="800">- Bad requests short-circuit before routes</text>
+
+  <rect class="panel" x="775" y="185" width="310" height="285" rx="14" />
+  <text class="box-title" x="798" y="218">API route groups</text>
+  <text class="text" x="798" y="248">/auth: register, verify, resend</text>
+  <text class="text" x="798" y="272">/auth: login, refresh, logout</text>
+  <text class="text" x="798" y="296">/auth: forgot/reset password, me</text>
+  <text class="text" x="798" y="320">/documents: list/get/search/upload/update</text>
+  <text class="text" x="798" y="344">/documents: versions, restore, delete</text>
+  <text class="text" x="798" y="368">/documents: admin permissions</text>
+  <text class="text" x="798" y="392">/chat: question + session CRUD</text>
+  <text class="text" x="798" y="416">/ask: single-turn document Q&amp;A</text>
+  <text class="text" x="798" y="440">/users: admin user management</text>
+
+  <rect class="panel-soft blue-soft" x="775" y="500" width="310" height="245" rx="14" />
+  <text class="box-title" x="798" y="533">FastAPI dependencies</text>
+  <text class="text" x="798" y="563">get_db()</text>
+  <text class="small" x="818" y="584">one AsyncSession per request</text>
+  <text class="text" x="798" y="613">get_current_user()</text>
+  <text class="small" x="818" y="634">Bearer token -> JWT decode -> users row</text>
+  <text class="small" x="818" y="655">reject missing, invalid, inactive users</text>
+  <text class="text" x="798" y="684">require_admin()</text>
+  <text class="small" x="818" y="705">requires current user role == admin</text>
+
+  <rect class="panel-soft red-soft" x="775" y="775" width="310" height="165" rx="14" />
+  <text class="box-title" x="798" y="808">Error translation</text>
+  <text class="text" x="798" y="838">- Services raise domain errors</text>
+  <text class="text" x="798" y="862">- Routes choose HTTP status</text>
+  <text class="text" x="798" y="886">- Exception handlers keep payloads consistent</text>
+  <text class="text" x="798" y="910">- AI errors map to 502/503</text>
+
+  <rect class="panel" x="1165" y="185" width="310" height="172" rx="14" />
+  <text class="box-title" x="1188" y="218">AuthService</text>
+  <text class="text" x="1188" y="248">- Hashes passwords and tokens</text>
+  <text class="text" x="1188" y="272">- Creates email verification tokens</text>
+  <text class="text" x="1188" y="296">- Issues access + refresh JWTs</text>
+  <text class="text" x="1188" y="320">- Rotates/revokes refresh tokens</text>
+
+  <rect class="panel" x="1165" y="385" width="310" height="255" rx="14" />
+  <text class="box-title" x="1188" y="418">DocumentService</text>
+  <text class="text" x="1188" y="448">- Validate category and checksum</text>
+  <text class="text" x="1188" y="472">- Enforce read/write/owner permissions</text>
+  <text class="text" x="1188" y="496">- Create/update document row</text>
+  <text class="text" x="1188" y="520">- Split content into chunks</text>
+  <text class="text" x="1188" y="544">- Optional embedding generation</text>
+  <text class="text" x="1188" y="568">- Replace chunk rows atomically</text>
+  <text class="text" x="1188" y="592">- Append immutable version snapshot</text>
+  <text class="text" x="1188" y="616">- Soft delete / restore</text>
+
+  <rect class="panel" x="1165" y="670" width="310" height="280" rx="14" />
+  <text class="box-title" x="1188" y="703">ChatService + AskService</text>
+  <text class="text" x="1188" y="733">- Get/create user-owned session</text>
+  <text class="text" x="1188" y="757">- Save user message</text>
+  <text class="text" x="1188" y="781">- Load recent history</text>
+  <text class="text" x="1188" y="805">- Retrieve readable document chunks</text>
+  <text class="text" x="1188" y="829">- Build prompt with source context</text>
+  <text class="text" x="1188" y="853">- Call configured AI provider</text>
+  <text class="text" x="1188" y="877">- Save assistant message</text>
+  <text class="text" x="1188" y="901">- Save citations + AI run usage</text>
+  <text class="small" x="1188" y="925">AskService returns answer without chat history persistence</text>
+
+  <rect class="panel-soft purple-soft" x="1165" y="980" width="310" height="145" rx="14" />
+  <text class="box-title" x="1188" y="1013">UserService + AuditService</text>
+  <text class="text" x="1188" y="1043">- Admin user list/update/delete/restore</text>
+  <text class="text" x="1188" y="1067">- Guard last admin and self-delete cases</text>
+  <text class="text" x="1188" y="1091">- Write audit log for important actions</text>
+
+  <rect class="panel" x="1555" y="185" width="270" height="205" rx="14" />
+  <text class="box-title" x="1578" y="218">Repositories + DB session</text>
+  <text class="text" x="1578" y="248">- users repository</text>
+  <text class="text" x="1578" y="272">- auth token repositories</text>
+  <text class="text" x="1578" y="296">- documents repository</text>
+  <text class="text" x="1578" y="320">- chat repository</text>
+  <text class="text" x="1578" y="344">- SQLAlchemy AsyncSession</text>
+  <text class="text" x="1578" y="368">- commit, refresh, rollback by flow</text>
+
+  <rect class="panel green-soft" x="1555" y="420" width="270" height="210" rx="14" />
+  <text class="box-title" x="1578" y="453">PostgreSQL schema: kb</text>
+  <text class="text" x="1578" y="483">- users + auth token tables</text>
+  <text class="text" x="1578" y="507">- document metadata, chunks, versions</text>
+  <text class="text" x="1578" y="531">- document permissions</text>
+  <text class="text" x="1578" y="555">- chat sessions/messages/sources</text>
+  <text class="text" x="1578" y="579">- AI run metadata</text>
+  <text class="text" x="1578" y="603">- audit_logs JSONB details</text>
+
+  <rect class="panel-soft" x="1555" y="660" width="270" height="140" rx="14" />
+  <text class="box-title" x="1578" y="693">Local upload storage</text>
+  <text class="text" x="1578" y="723">- uploads/{uuid}_{filename}</text>
+  <text class="text" x="1578" y="747">- original file preserved</text>
+  <text class="text" x="1578" y="771">- cleanup on failed DB work/replacement</text>
+
+  <rect class="panel-soft blue-soft" x="1555" y="830" width="270" height="150" rx="14" />
+  <text class="box-title" x="1578" y="863">AI provider</text>
+  <text class="text" x="1578" y="893">- Chat completion model</text>
+  <text class="text" x="1578" y="917">- Optional embedding model</text>
+  <text class="text" x="1578" y="941">- Usage returned as token counts</text>
+  <text class="text" x="1578" y="965">- Errors become 502/503 responses</text>
+
+  <rect class="panel-soft amber-soft" x="1555" y="1010" width="270" height="115" rx="14" />
+  <text class="box-title" x="1578" y="1043">SMTP / dev tokens</text>
+  <text class="text" x="1578" y="1073">- Verification email</text>
+  <text class="text" x="1578" y="1097">- Password reset email or dev response token</text>
+
+  <path class="arrow" d="M 345 282 C 370 282, 395 282, 425 282" />
+  <path class="arrow" d="M 695 535 C 720 535, 745 535, 775 535" />
+  <path class="arrow" d="M 1085 585 C 1110 585, 1135 585, 1165 585" />
+  <path class="arrow" d="M 1475 510 C 1500 510, 1525 510, 1555 510" />
+
+  <path class="muted-arrow" d="M 930 745 C 930 725, 930 720, 930 705" />
+  <text class="label" x="944" y="735">auth gate</text>
+  <path class="muted-arrow" d="M 1320 357 C 1320 370, 1320 374, 1320 385" />
+  <text class="label" x="1334" y="376">public auth</text>
+  <path class="muted-arrow" d="M 1475 485 C 1510 485, 1520 485, 1555 485" />
+  <text class="label" x="1485" y="474">CRUD queries</text>
+  <path class="muted-arrow" d="M 1475 525 C 1510 560, 1520 640, 1555 715" />
+  <text class="label" x="1485" y="590">file metadata</text>
+  <path class="muted-arrow" d="M 1475 810 C 1510 830, 1520 850, 1555 895" />
+  <text class="label" x="1485" y="842">prompt + embeddings</text>
+  <path class="muted-arrow" d="M 1475 252 C 1510 900, 1520 980, 1555 1066" />
+  <text class="label" x="1482" y="1000">email tokens</text>
+
+  <rect class="panel-soft" x="75" y="795" width="1010" height="295" rx="16" />
+  <text class="section-title" x="100" y="830">Important request paths</text>
+
+  <rect class="accent-soft" x="100" y="855" width="235" height="195" rx="12" />
+  <text class="box-title" x="120" y="885">1. Auth lifecycle</text>
+  <text class="text" x="120" y="915">register -> user row</text>
+  <text class="text" x="120" y="939">-> verification token hash</text>
+  <text class="text" x="120" y="963">-> email/dev token</text>
+  <text class="text" x="120" y="987">login -> password verify</text>
+  <text class="text" x="120" y="1011">-> access JWT + refresh row</text>
+  <text class="text" x="120" y="1035">refresh rotates stored token</text>
+
+  <rect class="accent-soft" x="360" y="855" width="235" height="195" rx="12" />
+  <text class="box-title" x="380" y="885">2. Document upload</text>
+  <text class="text" x="380" y="915">admin -> multipart .md file</text>
+  <text class="text" x="380" y="939">validate size + UTF-8</text>
+  <text class="text" x="380" y="963">save file under uploads/</text>
+  <text class="text" x="380" y="987">checksum duplicate guard</text>
+  <text class="text" x="380" y="1011">create document + chunks</text>
+  <text class="text" x="380" y="1035">version snapshot + audit log</text>
+
+  <rect class="accent-soft" x="620" y="855" width="235" height="195" rx="12" />
+  <text class="box-title" x="640" y="885">3. Chat/RAG answer</text>
+  <text class="text" x="640" y="915">JWT -> user -> session</text>
+  <text class="text" x="640" y="939">save user message</text>
+  <text class="text" x="640" y="963">retrieve readable chunks</text>
+  <text class="text" x="640" y="987">semantic or keyword fallback</text>
+  <text class="text" x="640" y="1011">AI answer -> assistant message</text>
+  <text class="text" x="640" y="1035">citations + ai_runs saved</text>
+
+  <rect class="accent-soft" x="880" y="855" width="180" height="195" rx="12" />
+  <text class="box-title" x="900" y="885">4. Admin flows</text>
+  <text class="text" x="900" y="915">require_admin</text>
+  <text class="text" x="900" y="939">manage users</text>
+  <text class="text" x="900" y="963">grant/revoke access</text>
+  <text class="text" x="900" y="987">restore/delete docs</text>
+  <text class="text" x="900" y="1011">record audit_logs</text>
+
+  <rect class="panel-soft" x="75" y="1185" width="1750" height="80" rx="14" />
+  <text class="box-title" x="100" y="1218">Layering rule used by this server</text>
+  <text class="text" x="100" y="1248">Routes validate HTTP inputs and translate errors. Services own business rules. Repositories own SQLAlchemy queries. Models map rows in the PostgreSQL kb schema. External systems are wrapped behind provider/service adapters.</text>
+</svg>

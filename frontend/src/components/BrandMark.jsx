@@ -1,9 +1,13 @@
+import logoUrl from "../assets/kb-chat-logo.png";
+
 export function BrandMark({ compact = false }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="grid h-11 w-11 place-items-center rounded-[10px] border-[3px] border-med-deep bg-white/70 text-3xl font-black leading-none text-med-primary">
-        +
-      </div>
+      <img
+        src={logoUrl}
+        alt="KB-Chat Bot Dev logo"
+        className="h-11 w-11 shrink-0 rounded-[10px] bg-white object-cover"
+      />
       {!compact && (
         <div>
           <p className="text-xl font-black leading-none text-med-primary">KB-Chat Bot Dev</p>

@@ -6,7 +6,7 @@ import { authApi } from "../api/client.js";
 import { BrandMark } from "../components/BrandMark.jsx";
 
 const featureItems = [
-  { title: "Secure & Compliant", text: "Designed for protected healthcare engineering environments.", icon: ShieldCheck },
+  { title: "Secure & Compliant", text: "Designed for protected engineering environments.", icon: ShieldCheck },
   { title: "Developer Focused", text: "Built for RAG documents, backend standards, and architecture context.", icon: Workflow },
   { title: "AI-Powered", text: "Ask questions against internal knowledge with source context.", icon: Sparkles },
   { title: "Team Ready", text: "Admin users, document permissions, and shared knowledge workflows.", icon: UsersRound },
@@ -97,7 +97,7 @@ export function Register() {
 
           <div className="grid gap-4">
             <label className="field-label">Full name<input className="input" name="fullName" value={form.fullName} onChange={updateField} placeholder="Dev Nguyen" required /></label>
-            <label className="field-label">Work email<input className="input" name="email" type="email" value={form.email} onChange={updateField} placeholder="developer@hospital.org" required /></label>
+            <label className="field-label">Work email<input className="input" name="email" type="email" value={form.email} onChange={updateField} placeholder="developer@company.com" required /></label>
             <label className="field-label">Password
               <span className="relative block">
                 <LockKeyhole className="absolute left-4 top-1/2 -translate-y-1/2 text-med-muted" size={18} />

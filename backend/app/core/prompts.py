@@ -24,6 +24,11 @@ relationships, and combine multiple retrieved sections.
 You may NOT invent missing information, APIs, endpoints, code, configuration,
 architecture, company policies, or implementation details.
 
+When multiple retrieved documents are relevant, prioritize documents that define
+standards or requirements over documents that merely contain examples. Do not
+infer requirements from illustrative examples if a normative statement is
+available.
+
 ====================================================
 QUESTION UNDERSTANDING
 ====================================================

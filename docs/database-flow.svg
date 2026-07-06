@@ -1,0 +1,322 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2200" height="1500" viewBox="0 0 2200 1500" role="img" aria-labelledby="title desc">
+  <title id="title">Database ER Diagram - KB Chat Bot Dev</title>
+  <desc id="desc">Clean entity relationship diagram for the PostgreSQL kb schema used by the KB Chat Bot Dev backend.</desc>
+  <defs>
+    <marker id="many" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" orient="auto">
+      <path d="M1 1 L11 6 L1 11 M1 6 L11 6" fill="none" stroke="#115E59" stroke-width="1.7" />
+    </marker>
+    <marker id="manyGray" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" orient="auto">
+      <path d="M1 1 L11 6 L1 11 M1 6 L11 6" fill="none" stroke="#6B7280" stroke-width="1.7" />
+    </marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="7" flood-color="#172A2A" flood-opacity="0.12" />
+    </filter>
+    <style>
+      .bg { fill: #F7FAFA; }
+      .group { fill: #ECFAFA; stroke: #DDE7E6; stroke-width: 1.5; }
+      .entity { fill: #FFFFFF; stroke: #BFD4D2; stroke-width: 2; filter: url(#shadow); }
+      .head-user { fill: #0F766E; }
+      .head-auth { fill: #2563EB; }
+      .head-doc { fill: #115E59; }
+      .head-chat { fill: #6D28D9; }
+      .head-audit { fill: #374151; }
+      .title { fill: #172A2A; font: 900 34px Inter, Segoe UI, Arial, sans-serif; }
+      .subtitle { fill: #5F6F6D; font: 600 16px Inter, Segoe UI, Arial, sans-serif; }
+      .section { fill: #115E59; font: 900 19px Inter, Segoe UI, Arial, sans-serif; }
+      .table-name { fill: white; font: 900 16px Inter, Segoe UI, Arial, sans-serif; }
+      .field { fill: #172A2A; font: 600 12.5px Inter, Segoe UI, Arial, sans-serif; }
+      .key { fill: #172A2A; font: 900 12.5px Inter, Segoe UI, Arial, sans-serif; }
+      .muted { fill: #5F6F6D; font: 600 11.5px Inter, Segoe UI, Arial, sans-serif; }
+      .rel { stroke: #115E59; stroke-width: 2.4; fill: none; marker-end: url(#many); }
+      .rel-gray { stroke: #6B7280; stroke-width: 2; fill: none; stroke-dasharray: 7 6; marker-end: url(#manyGray); }
+      .card { fill: #FFFFFF; stroke: #DDE7E6; stroke-width: 2; }
+      .one { fill: #115E59; font: 900 13px Inter, Segoe UI, Arial, sans-serif; }
+      .many-label { fill: #115E59; font: 900 13px Inter, Segoe UI, Arial, sans-serif; }
+      .rel-label { fill: #4B5563; font: 700 11px Inter, Segoe UI, Arial, sans-serif; }
+      .legend-title { fill: #172A2A; font: 900 15px Inter, Segoe UI, Arial, sans-serif; }
+      .legend { fill: #172A2A; font: 600 12px Inter, Segoe UI, Arial, sans-serif; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="2200" height="1500" />
+  <text class="title" x="70" y="64">Database ER Diagram</text>
+  <text class="subtitle" x="70" y="94">PostgreSQL schema: kb. Parent tables point to child tables with crow-foot markers. Dashed lines are nullable or SET NULL relationships.</text>
+
+  <rect class="group" x="50" y="130" width="430" height="1090" rx="20" />
+  <text class="section" x="75" y="165">Identity and auth</text>
+
+  <rect class="group" x="520" y="130" width="810" height="1090" rx="20" />
+  <text class="section" x="545" y="165">Documents, access, chunks, versions</text>
+
+  <rect class="group" x="1370" y="130" width="780" height="1090" rx="20" />
+  <text class="section" x="1395" y="165">Chat, citations, AI runs, audit</text>
+
+  <g id="users">
+    <rect class="entity" x="95" y="205" width="330" height="286" rx="12" />
+    <rect class="head-user" x="95" y="205" width="330" height="40" rx="12" />
+    <text class="table-name" x="117" y="230">users</text>
+    <text class="key" x="117" y="270">PK id UUID</text>
+    <text class="field" x="117" y="294">email varchar(255) UNIQUE NOT NULL</text>
+    <text class="field" x="117" y="318">hashed_password text NOT NULL</text>
+    <text class="field" x="117" y="342">full_name varchar(255)</text>
+    <text class="field" x="117" y="366">role CHECK admin | user</text>
+    <text class="field" x="117" y="390">is_active boolean</text>
+    <text class="field" x="117" y="414">is_email_verified boolean</text>
+    <text class="muted" x="117" y="448">created_at, updated_at</text>
+    <text class="muted" x="117" y="472">Root identity table</text>
+  </g>
+
+  <g id="refresh_tokens">
+    <rect class="entity" x="95" y="565" width="330" height="190" rx="12" />
+    <rect class="head-auth" x="95" y="565" width="330" height="38" rx="12" />
+    <text class="table-name" x="117" y="589">refresh_tokens</text>
+    <text class="key" x="117" y="628">PK id UUID</text>
+    <text class="field" x="117" y="652">FK user_id -> users.id CASCADE</text>
+    <text class="field" x="117" y="676">token_hash varchar(64) UNIQUE</text>
+    <text class="field" x="117" y="700">token_id varchar(64) UNIQUE</text>
+    <text class="field" x="117" y="724">expires_at, revoked_at, is_revoked</text>
+  </g>
+
+  <g id="email_verification_tokens">
+    <rect class="entity" x="95" y="805" width="330" height="170" rx="12" />
+    <rect class="head-auth" x="95" y="805" width="330" height="38" rx="12" />
+    <text class="table-name" x="117" y="829">email_verification_tokens</text>
+    <text class="key" x="117" y="868">PK id UUID</text>
+    <text class="field" x="117" y="892">FK user_id -> users.id CASCADE</text>
+    <text class="field" x="117" y="916">token_hash varchar(64) UNIQUE</text>
+    <text class="field" x="117" y="940">expires_at, is_used, used_at</text>
+  </g>
+
+  <g id="password_reset_tokens">
+    <rect class="entity" x="95" y="1025" width="330" height="170" rx="12" />
+    <rect class="head-auth" x="95" y="1025" width="330" height="38" rx="12" />
+    <text class="table-name" x="117" y="1049">password_reset_tokens</text>
+    <text class="key" x="117" y="1088">PK id UUID</text>
+    <text class="field" x="117" y="1112">FK user_id -> users.id CASCADE</text>
+    <text class="field" x="117" y="1136">token_hash varchar(64) UNIQUE</text>
+    <text class="field" x="117" y="1160">expires_at, is_used, used_at</text>
+  </g>
+
+  <g id="document_categories">
+    <rect class="entity" x="560" y="205" width="305" height="150" rx="12" />
+    <rect class="head-doc" x="560" y="205" width="305" height="38" rx="12" />
+    <text class="table-name" x="582" y="229">document_categories</text>
+    <text class="key" x="582" y="268">PK id UUID</text>
+    <text class="field" x="582" y="292">name varchar(50) UNIQUE NOT NULL</text>
+    <text class="field" x="582" y="316">description text</text>
+    <text class="muted" x="582" y="340">Allowed KB categories</text>
+  </g>
+
+  <g id="documents">
+    <rect class="entity" x="920" y="410" width="355" height="315" rx="12" />
+    <rect class="head-doc" x="920" y="410" width="355" height="40" rx="12" />
+    <text class="table-name" x="942" y="435">documents</text>
+    <text class="key" x="942" y="475">PK id UUID</text>
+    <text class="field" x="942" y="499">title varchar(120) NOT NULL</text>
+    <text class="field" x="942" y="523">FK category_id -> document_categories.id</text>
+    <text class="field" x="942" y="547">file_name, file_path, file_type</text>
+    <text class="field" x="942" y="571">content_checksum varchar(64)</text>
+    <text class="field" x="942" y="595">content text NOT NULL</text>
+    <text class="field" x="942" y="619">status CHECK uploaded | processing | ready | failed</text>
+    <text class="field" x="942" y="643">FK created_by -> users.id NULL</text>
+    <text class="field" x="942" y="667">is_deleted boolean, deleted_at timestamptz</text>
+    <text class="muted" x="942" y="701">created_at, updated_at</text>
+  </g>
+
+  <g id="document_permissions">
+    <rect class="entity" x="560" y="455" width="320" height="210" rx="12" />
+    <rect class="head-doc" x="560" y="455" width="320" height="38" rx="12" />
+    <text class="table-name" x="582" y="479">document_permissions</text>
+    <text class="key" x="582" y="518">PK id UUID</text>
+    <text class="field" x="582" y="542">FK document_id -> documents.id CASCADE</text>
+    <text class="field" x="582" y="566">FK user_id -> users.id CASCADE</text>
+    <text class="field" x="582" y="590">permission CHECK read | write | owner</text>
+    <text class="muted" x="582" y="624">UNIQUE(document_id, user_id)</text>
+    <text class="muted" x="582" y="648">Access join table</text>
+  </g>
+
+  <g id="document_chunks">
+    <rect class="entity" x="560" y="830" width="350" height="245" rx="12" />
+    <rect class="head-doc" x="560" y="830" width="350" height="38" rx="12" />
+    <text class="table-name" x="582" y="854">document_chunks</text>
+    <text class="key" x="582" y="893">PK id UUID</text>
+    <text class="field" x="582" y="917">FK document_id -> documents.id CASCADE</text>
+    <text class="field" x="582" y="941">chunk_index integer NOT NULL</text>
+    <text class="field" x="582" y="965">content text NOT NULL, token_count integer</text>
+    <text class="field" x="582" y="989">embedding_id text, embedding text</text>
+    <text class="field" x="582" y="1013">embedding_provider, embedding_model</text>
+    <text class="field" x="582" y="1037">embedding_dimensions, embedded_at</text>
+    <text class="muted" x="582" y="1061">UNIQUE(document_id, chunk_index)</text>
+  </g>
+
+  <g id="document_versions">
+    <rect class="entity" x="940" y="830" width="340" height="235" rx="12" />
+    <rect class="head-doc" x="940" y="830" width="340" height="38" rx="12" />
+    <text class="table-name" x="962" y="854">document_versions</text>
+    <text class="key" x="962" y="893">PK id UUID</text>
+    <text class="field" x="962" y="917">FK document_id -> documents.id CASCADE</text>
+    <text class="field" x="962" y="941">version_number integer NOT NULL</text>
+    <text class="field" x="962" y="965">title varchar(120), content text</text>
+    <text class="field" x="962" y="989">FK category_id -> document_categories.id</text>
+    <text class="field" x="962" y="1013">file metadata + content_checksum</text>
+    <text class="muted" x="962" y="1047">UNIQUE(document_id, version_number)</text>
+  </g>
+
+  <g id="chat_sessions">
+    <rect class="entity" x="1415" y="205" width="320" height="155" rx="12" />
+    <rect class="head-chat" x="1415" y="205" width="320" height="38" rx="12" />
+    <text class="table-name" x="1437" y="229">chat_sessions</text>
+    <text class="key" x="1437" y="268">PK id UUID</text>
+    <text class="field" x="1437" y="292">FK user_id -> users.id CASCADE</text>
+    <text class="field" x="1437" y="316">title varchar(255)</text>
+    <text class="muted" x="1437" y="340">created_at, updated_at</text>
+  </g>
+
+  <g id="chat_messages">
+    <rect class="entity" x="1415" y="445" width="320" height="190" rx="12" />
+    <rect class="head-chat" x="1415" y="445" width="320" height="40" rx="12" />
+    <text class="table-name" x="1437" y="470">chat_messages</text>
+    <text class="key" x="1437" y="510">PK id UUID</text>
+    <text class="field" x="1437" y="534">FK session_id -> chat_sessions.id CASCADE</text>
+    <text class="field" x="1437" y="558">role CHECK user | assistant | system</text>
+    <text class="field" x="1437" y="582">content text NOT NULL</text>
+    <text class="muted" x="1437" y="616">created_at, updated_at</text>
+  </g>
+
+  <g id="message_sources">
+    <rect class="entity" x="1415" y="780" width="350" height="205" rx="12" />
+    <rect class="head-chat" x="1415" y="780" width="350" height="38" rx="12" />
+    <text class="table-name" x="1437" y="804">message_sources</text>
+    <text class="key" x="1437" y="843">PK id UUID</text>
+    <text class="field" x="1437" y="867">FK message_id -> chat_messages.id CASCADE</text>
+    <text class="field" x="1437" y="891">FK document_id -> documents.id CASCADE</text>
+    <text class="field" x="1437" y="915">FK chunk_id -> document_chunks.id SET NULL</text>
+    <text class="field" x="1437" y="939">similarity_score float</text>
+    <text class="muted" x="1437" y="963">Citation bridge from answer to sources</text>
+  </g>
+
+  <g id="ai_runs">
+    <rect class="entity" x="1810" y="420" width="310" height="240" rx="12" />
+    <rect class="head-chat" x="1810" y="420" width="310" height="38" rx="12" />
+    <text class="table-name" x="1832" y="444">ai_runs</text>
+    <text class="key" x="1832" y="483">PK id UUID</text>
+    <text class="field" x="1832" y="507">FK session_id -> chat_sessions.id CASCADE</text>
+    <text class="field" x="1832" y="531">FK user_message_id -> chat_messages.id SET NULL</text>
+    <text class="field" x="1832" y="555">FK assistant_message_id -> chat_messages.id SET NULL</text>
+    <text class="field" x="1832" y="579">model_name varchar(100)</text>
+    <text class="field" x="1832" y="603">prompt/completion/total_tokens</text>
+    <text class="field" x="1832" y="627">status CHECK success | failed, error_message</text>
+  </g>
+
+  <g id="audit_logs">
+    <rect class="entity" x="1810" y="780" width="310" height="180" rx="12" />
+    <rect class="head-audit" x="1810" y="780" width="310" height="38" rx="12" />
+    <text class="table-name" x="1832" y="804">audit_logs</text>
+    <text class="key" x="1832" y="843">PK id UUID</text>
+    <text class="field" x="1832" y="867">FK actor_user_id -> users.id SET NULL</text>
+    <text class="field" x="1832" y="891">action varchar(100)</text>
+    <text class="field" x="1832" y="915">resource_type, resource_id</text>
+    <text class="field" x="1832" y="939">details JSONB</text>
+  </g>
+
+  <!-- users -> auth token tables -->
+  <path class="rel" d="M260 491 L260 565" />
+  <text class="one" x="239" y="520">1</text>
+  <text class="many-label" x="276" y="550">N</text>
+  <text class="rel-label" x="278" y="528">refresh</text>
+
+  <path class="rel" d="M210 491 L210 805" />
+  <text class="one" x="189" y="520">1</text>
+  <text class="many-label" x="226" y="790">N</text>
+  <text class="rel-label" x="226" y="675">verification</text>
+
+  <path class="rel" d="M315 491 L315 1025" />
+  <text class="one" x="330" y="520">1</text>
+  <text class="many-label" x="330" y="1010">N</text>
+  <text class="rel-label" x="332" y="895">reset</text>
+
+  <!-- users relationships -->
+  <path class="rel-gray" d="M425 345 C560 345 740 430 920 615" />
+  <text class="one" x="440" y="337">0..1</text>
+  <text class="many-label" x="900" y="600">N</text>
+  <text class="rel-label" x="595" y="382">documents.created_by</text>
+
+  <path class="rel" d="M425 420 C505 420 500 566 560 566" />
+  <text class="one" x="440" y="412">1</text>
+  <text class="many-label" x="540" y="558">N</text>
+  <text class="rel-label" x="440" y="520">permissions</text>
+
+  <path class="rel" d="M425 280 C780 140 1160 175 1415 280" />
+  <text class="one" x="440" y="270">1</text>
+  <text class="many-label" x="1395" y="270">N</text>
+  <text class="rel-label" x="980" y="160">chat_sessions</text>
+
+  <path class="rel-gray" d="M425 460 C975 1270 1645 970 1810 875" />
+  <text class="one" x="440" y="452">0..1</text>
+  <text class="many-label" x="1788" y="870">N</text>
+  <text class="rel-label" x="1480" y="1045">audit actor</text>
+
+  <!-- document relationships -->
+  <path class="rel" d="M725 355 C800 390 850 410 920 505" />
+  <text class="one" x="738" y="372">1</text>
+  <text class="many-label" x="898" y="492">N</text>
+  <text class="rel-label" x="810" y="405">category</text>
+
+  <path class="rel" d="M920 560 L880 560" />
+  <text class="one" x="900" y="552">1</text>
+  <text class="many-label" x="884" y="552">N</text>
+  <text class="rel-label" x="822" y="545">access rows</text>
+
+  <path class="rel" d="M1000 725 C930 775 805 802 735 830" />
+  <text class="one" x="1008" y="748">1</text>
+  <text class="many-label" x="744" y="817">N</text>
+  <text class="rel-label" x="820" y="792">chunks</text>
+
+  <path class="rel" d="M1110 725 L1110 830" />
+  <text class="one" x="1125" y="752">1</text>
+  <text class="many-label" x="1125" y="815">N</text>
+  <text class="rel-label" x="1138" y="790">versions</text>
+
+  <path class="rel-gray" d="M865 292 C1000 380 1055 610 1085 830" />
+  <text class="one" x="878" y="304">1</text>
+  <text class="many-label" x="1060" y="812">N</text>
+  <text class="rel-label" x="1000" y="580">version category</text>
+
+  <!-- chat relationships -->
+  <path class="rel" d="M1575 360 L1575 445" />
+  <text class="one" x="1553" y="388">1</text>
+  <text class="many-label" x="1590" y="430">N</text>
+  <text class="rel-label" x="1592" y="410">messages</text>
+
+  <path class="rel" d="M1735 282 C1810 305 1905 350 1960 420" />
+  <text class="one" x="1748" y="278">1</text>
+  <text class="many-label" x="1947" y="405">N</text>
+  <text class="rel-label" x="1830" y="324">AI runs</text>
+
+  <path class="rel" d="M1575 635 L1575 780" />
+  <text class="one" x="1554" y="662">1</text>
+  <text class="many-label" x="1590" y="765">N</text>
+  <text class="rel-label" x="1592" y="710">sources</text>
+
+  <path class="rel-gray" d="M1735 535 L1810 535" />
+  <text class="one" x="1742" y="525">0..1</text>
+  <text class="many-label" x="1788" y="525">N</text>
+  <text class="rel-label" x="1745" y="558">message refs</text>
+
+  <!-- source relationships -->
+  <path class="rel" d="M1275 620 C1345 675 1375 800 1415 880" />
+  <text class="one" x="1285" y="640">1</text>
+  <text class="many-label" x="1395" y="868">N</text>
+  <text class="rel-label" x="1300" y="768">cited document</text>
+
+  <path class="rel-gray" d="M910 965 C1080 1060 1265 1035 1415 920" />
+  <text class="one" x="922" y="985">0..1</text>
+  <text class="many-label" x="1395" y="910">N</text>
+  <text class="rel-label" x="1130" y="1040">cited chunk nullable</text>
+
+  <rect class="card" x="70" y="1265" width="2050" height="150" rx="16" />
+  <text class="legend-title" x="100" y="1297">Legend and important constraints</text>
+  <text class="legend" x="100" y="1327">PK = primary key. FK = foreign key. Solid lines are required ownership/access relationships. Dashed lines are nullable or SET NULL references.</text>
+  <text class="legend" x="100" y="1357">Unique rules: users.email, token_hash fields, refresh_tokens.token_id, document_categories.name, document_chunks(document_id, chunk_index), document_permissions(document_id, user_id), document_versions(document_id, version_number).</text>
+  <text class="legend" x="100" y="1387">Cascade paths: users -> auth tokens/chat sessions; chat_sessions -> messages/ai_runs; documents -> chunks/versions/permissions/message_sources. message_sources.chunk_id, ai_runs message refs, and audit actor use nullable references.</text>
+</svg>

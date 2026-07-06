@@ -45,7 +45,7 @@ export function Login() {
           <section className="glass-panel w-full p-9 max-sm:p-6">
             <div className="mx-auto mb-6 grid h-16 w-16 place-items-center rounded-2xl border-[3px] border-med-primary bg-white/70 text-4xl font-black text-med-primary">+</div>
             <div className="mb-8 text-center">
-              <h1 className="text-3xl font-black text-med-text">Build healthcare AI with confidence.</h1>
+              <h1 className="text-3xl font-black text-med-text">Build internal AI with confidence.</h1>
               <p className="mt-2 text-med-muted">Sign in to your developer knowledge base.</p>
             </div>
 
@@ -54,7 +54,7 @@ export function Login() {
                 Email
                 <span className="relative block">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-med-muted" size={18} />
-                  <input className="input pl-12" name="email" type="email" value={form.email} onChange={updateField} placeholder="developer@hospital.org" required />
+                  <input className="input pl-12" name="email" type="email" value={form.email} onChange={updateField} placeholder="developer@company.com" required />
                 </span>
               </label>
               <label className="field-label">

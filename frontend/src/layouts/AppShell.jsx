@@ -1,5 +1,4 @@
 import {
-  ChevronDown,
   FileText,
   LockKeyhole,
   LogOut,
@@ -112,7 +111,6 @@ export function AppShell() {
               <p className="truncate font-black">{displayName}</p>
               <p className="text-sm text-med-muted">{roleLabel}</p>
             </div>
-            <ChevronDown size={16} />
           </section>
         </aside>
 
@@ -134,7 +132,7 @@ export function AppShell() {
           </section>
 
           <footer className="flex min-h-11 flex-wrap items-center justify-between gap-3 border-t border-med-border bg-white/60 px-8 py-3 text-xs text-med-muted">
-            <span className="flex items-center gap-2 font-bold text-med-primary"><LockKeyhole size={14} /> Secure - HIPAA-aware - Developer-focused</span>
+            <span className="flex items-center gap-2 font-bold text-med-primary"><LockKeyhole size={14} /> Secure - Private - Developer-focused</span>
             <span className="flex items-center gap-2">
               v1.2.0 - API {health}
               <span className={`h-2.5 w-2.5 rounded-full ${health === "online" ? "bg-med-success" : "bg-med-warning"}`} />

@@ -1,6 +1,6 @@
-# MedKB Dev Frontend
+# KB Chat Bot Dev Frontend
 
-React/Vite frontend for the MedKB Dev healthcare AI developer assistant.
+React/Vite frontend for the KB Chat Bot Dev AI developer assistant.
 
 This UI should stay aligned with the real FastAPI backend. Do not add visible
 features that do not exist in `../backend/BACKEND_CAPABILITY_LOG.md`.

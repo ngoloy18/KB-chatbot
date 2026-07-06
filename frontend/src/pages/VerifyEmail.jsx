@@ -101,7 +101,7 @@ export function VerifyEmail() {
           <form className="rounded-lg border border-med-border bg-white/80 p-6 shadow-soft" onSubmit={resend}>
             <h3 className="font-black text-med-text">Need a new token?</h3>
             <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] gap-3 max-sm:grid-cols-1">
-              <input className="input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="developer@hospital.org" />
+              <input className="input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="developer@company.com" />
               <button className="secondary-button" disabled={!email.trim() || resending} type="submit">
                 <RefreshCcw size={16} /> {resending ? "Sending..." : "Resend"}
               </button>
