@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { authApi } from "../api/client.js";
+import logoUrl from "../assets/kb-chat-logo.png";
 import { BrandMark } from "../components/BrandMark.jsx";
 import { saveCurrentUser, saveTokens } from "../utils/auth.js";
 
@@ -43,7 +44,12 @@ export function Login() {
         <BrandMark />
         <div className="relative z-10 mx-auto flex w-full max-w-xl items-center">
           <section className="glass-panel w-full p-9 max-sm:p-6">
-            <div className="mx-auto mb-6 grid h-16 w-16 place-items-center rounded-2xl border-[3px] border-med-primary bg-white/70 text-4xl font-black text-med-primary">+</div>
+            <img
+              src={logoUrl}
+              alt=""
+              aria-hidden="true"
+              className="mx-auto mb-6 h-16 w-16 rounded-2xl border border-med-border bg-white/80 object-contain p-2"
+            />
             <div className="mb-8 text-center">
               <h1 className="text-3xl font-black text-med-text">Build internal AI with confidence.</h1>
               <p className="mt-2 text-med-muted">Sign in to your developer knowledge base.</p>

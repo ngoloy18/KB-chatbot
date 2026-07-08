@@ -7,7 +7,12 @@ from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_S
 from app.db.session import get_db
 from app.dependencies.auth import require_admin
 from app.models.database import User
-from app.schemas.users.schemas import UserAdminResponse, UserListResponse, UserUpdateRequest
+from app.schemas.users.schemas import (
+    UserAdminResponse,
+    UserCreateRequest,
+    UserListResponse,
+    UserUpdateRequest,
+)
 from app.services.audit import audit_service
 from app.services.auth.exceptions import DuplicateEmailError
 from app.services.users.exceptions import (
@@ -35,6 +40,39 @@ async def list_users(
     """Return users for admin management screens."""
 
     return await user_service.list_users(db, page, page_size)
+
+
+@router.post(
+    "",
+    response_model=UserAdminResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create one user as admin",
+)
+async def create_user(
+    payload: UserCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+) -> UserAdminResponse:
+    """Create a user account from the admin management screen."""
+
+    try:
+        created_user = await user_service.create_user(db, payload)
+        audit_details = payload.model_dump(
+            exclude={"password"},
+            mode="json",
+        )
+        audit_details["password_set"] = True
+        await audit_service.safe_record(
+            db=db,
+            action="user.created",
+            actor_user_id=current_admin.id,
+            resource_type="user",
+            resource_id=created_user.id,
+            details=audit_details,
+        )
+        return created_user
+    except DuplicateEmailError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
 
 @router.get(

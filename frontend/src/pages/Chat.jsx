@@ -5,6 +5,7 @@ import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 
 import { chatApi } from "../api/client.js";
+import logoUrl from "../assets/kb-chat-logo.png";
 import { SkeletonBlock } from "../components/Skeleton.jsx";
 import { StatusChip } from "../components/StatusChip.jsx";
 import { formatDate } from "../utils/format.js";
@@ -296,7 +297,14 @@ export function Chat() {
               const isUserMessage = message.role === "user";
               return (
                 <article className={`flex gap-4 ${isUserMessage ? "justify-end" : "justify-start"}`} key={message.id || `${message.role}-${message.created_at}`}>
-                  {!isUserMessage && <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border-2 border-med-primary text-2xl font-black text-med-primary">+</span>}
+                  {!isUserMessage && (
+                    <img
+                      src={logoUrl}
+                      alt=""
+                      aria-hidden="true"
+                      className="h-11 w-11 shrink-0 rounded-lg border border-med-border bg-white object-contain p-1.5"
+                    />
+                  )}
                   <div className={`max-w-3xl rounded-lg border border-med-border p-4 break-words ${isUserMessage ? "bg-med-bg" : "bg-white"}`}>
                     <p className="mb-2 text-sm font-black text-med-text">{isUserMessage ? "You" : "KB Chat Bot Dev AI"}</p>
                     {!isUserMessage ? (

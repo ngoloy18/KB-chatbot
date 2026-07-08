@@ -18,15 +18,13 @@ export function ForgotPassword() {
     setFeedback("");
     setError("");
     try {
-      const response = await authApi.forgotPassword({ email: email.trim() });
-      if (response.reset_token) {
-        setFeedback(`Dev reset token received: ${response.reset_token}`);
-        navigate(`/reset-password?token=${encodeURIComponent(response.reset_token)}`);
-      } else {
-        setFeedback(response.email_sent
-          ? "Password reset email sent."
-          : "Reset request accepted, but email was not sent. Check SMTP settings.");
-      }
+      const accountEmail = email.trim();
+      await authApi.forgotPassword({ email: accountEmail });
+      navigate(`/reset-password?email=${encodeURIComponent(accountEmail)}`, {
+        state: {
+          feedback: "If that account exists, check your email for the reset code.",
+        },
+      });
     } catch (forgotError) {
       setError(forgotError.message);
     } finally {
@@ -40,9 +38,9 @@ export function ForgotPassword() {
         <BrandMark />
         <div className="mt-16 max-w-xl">
           <p className="mb-4 text-sm font-black uppercase tracking-wide text-med-primary">Password recovery</p>
-          <h1 className="text-5xl font-black leading-tight text-med-text max-sm:text-4xl">Request a secure reset token.</h1>
+          <h1 className="text-5xl font-black leading-tight text-med-text max-sm:text-4xl">Request a secure reset email.</h1>
           <p className="mt-5 text-lg leading-8 text-med-muted">
-            Use your account email. The backend creates a reset token and revokes sessions after the password changes.
+            Use your account email. The backend creates a reset code and revokes sessions after the password changes.
           </p>
         </div>
       </section>
@@ -53,7 +51,7 @@ export function ForgotPassword() {
             <span className="grid h-12 w-12 place-items-center rounded-lg bg-teal-50 text-med-primary"><KeyRound size={22} /></span>
             <div>
               <h2 className="text-3xl font-black text-med-text">Forgot password</h2>
-              <p className="mt-2 text-med-muted">Send a reset link or receive a dev token locally.</p>
+              <p className="mt-2 text-med-muted">Send a reset code to your account email.</p>
             </div>
           </div>
 

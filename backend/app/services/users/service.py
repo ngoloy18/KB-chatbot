@@ -11,6 +11,7 @@ from app.repositories.auth.password_reset_tokens import password_reset_token_rep
 from app.repositories.auth.refresh_tokens import refresh_token_repository
 from app.repositories.users.users import user_repository
 from app.schemas.users.schemas import (
+    UserCreateRequest,
     UserAdminResponse,
     UserListResponse,
     UserUpdateRequest,
@@ -25,6 +26,28 @@ from app.services.users.exceptions import (
 
 class UserService:
     """Business logic for admin user management."""
+
+    async def create_user(
+        self,
+        db: AsyncSession,
+        payload: UserCreateRequest,
+    ) -> UserAdminResponse:
+        """Create one user account from the admin management screen."""
+
+        existing_user = await user_repository.get_by_email(db, payload.email)
+        if existing_user is not None:
+            raise DuplicateEmailError("A user with this email already exists.")
+
+        user = await user_repository.create_user(
+            db=db,
+            email=payload.email,
+            hashed_password=hash_password(payload.password),
+            full_name=payload.full_name,
+            role=payload.role,
+            is_active=payload.is_active,
+            is_email_verified=payload.is_email_verified,
+        )
+        return UserAdminResponse.model_validate(user)
 
     async def list_users(
         self,

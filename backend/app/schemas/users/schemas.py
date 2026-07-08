@@ -45,6 +45,29 @@ class UserUpdateRequest(BaseModel):
         return validate_strong_password(password)
 
 
+class UserCreateRequest(BaseModel):
+    """Admin request body for creating a user account."""
+
+    email: EmailStr
+    full_name: str | None = Field(default=None, max_length=255)
+    role: str = Field(default=USER_ROLE_USER, pattern=USER_ROLE_PATTERN)
+    is_active: bool = True
+    is_email_verified: bool = True
+    password: str = Field(
+        ...,
+        min_length=PASSWORD_MIN_LENGTH,
+        max_length=PASSWORD_MAX_LENGTH,
+        description=PASSWORD_REQUIREMENTS_DESCRIPTION,
+    )
+
+    @field_validator("password")
+    @classmethod
+    def password_must_be_strong(cls, password: str) -> str:
+        """Reject weak admin-set passwords before the service creates a user."""
+
+        return validate_strong_password(password)
+
+
 class UserAdminResponse(BaseModel):
     """User shape returned to admins."""
 

@@ -162,6 +162,10 @@ export const usersApi = {
     page: params.page || 1,
     page_size: params.page_size || 50,
   })}`),
+  create: (payload) => request("/api/users", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
   update: (id, payload) => request(`/api/users/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),

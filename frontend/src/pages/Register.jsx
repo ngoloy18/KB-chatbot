@@ -41,19 +41,21 @@ export function Register() {
     setSuccess("");
     setLoading(true);
     try {
+      const email = form.email.trim();
       const response = await authApi.register({
         full_name: form.fullName,
-        email: form.email,
+        email,
         password: form.password,
       });
-      if (response.verification_token) {
-        setSuccess(`Account created. Dev verification token: ${response.verification_token}`);
-        navigate(`/verify-email?token=${encodeURIComponent(response.verification_token)}&email=${encodeURIComponent(form.email)}`);
-      } else {
-        setSuccess(response.email_sent
-          ? "Account created. Check your email for the verification link before login."
-          : "Account created, but email was not sent. Ask an admin to check SMTP or use the dev token from the API response.");
+      if (response.email_sent) {
+        navigate(`/verify-email?email=${encodeURIComponent(email)}`, {
+          state: {
+            feedback: "Account created. Check your email for the verification code.",
+          },
+        });
+        return;
       }
+      setSuccess("Account created, but the verification email was not sent. Ask an admin to check SMTP settings.");
     } catch (registerError) {
       setError(registerError.message);
     } finally {

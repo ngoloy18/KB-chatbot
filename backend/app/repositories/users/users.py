@@ -44,6 +44,7 @@ class UserRepository:
         hashed_password: str,
         full_name: str | None = None,
         role: str = USER_ROLE_USER,
+        is_active: bool = True,
         is_email_verified: bool = False,
     ) -> User:
         """Create one user row."""
@@ -54,7 +55,7 @@ class UserRepository:
             hashed_password=hashed_password,
             full_name=full_name,
             role=role,
-            is_active=True,
+            is_active=is_active,
             is_email_verified=is_email_verified,
         )
         db.add(user)
