@@ -3,16 +3,19 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.auth import USER_ROLE_ADMIN
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.db.session import get_db
 from app.dependencies.auth import require_admin
 from app.models.database import User
+from app.schemas.documents.schemas import DocumentListResponse
 from app.schemas.users.schemas import (
     UserAdminResponse,
     UserCreateRequest,
     UserListResponse,
     UserUpdateRequest,
 )
+from app.services import document_service
 from app.services.audit import audit_service
 from app.services.auth.exceptions import DuplicateEmailError
 from app.services.users.exceptions import (
@@ -91,6 +94,34 @@ async def get_user(
         return await user_service.get_user(db, user_id)
     except UserNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.get(
+    "/{user_id}/documents",
+    response_model=DocumentListResponse,
+    summary="List documents visible to one user as admin",
+)
+async def list_user_documents(
+    user_id: UUID,
+    page: int = Query(default=DEFAULT_PAGE, ge=1),
+    page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+) -> DocumentListResponse:
+    """Return the documents a selected user can currently access."""
+
+    try:
+        target_user = await user_service.get_user(db, user_id)
+    except UserNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+    return await document_service.list_documents(
+        db=db,
+        page=page,
+        page_size=page_size,
+        current_user_id=user_id,
+        is_admin=target_user.role == USER_ROLE_ADMIN,
+    )
 
 
 @router.patch(

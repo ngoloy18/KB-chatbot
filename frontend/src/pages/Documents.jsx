@@ -1,6 +1,6 @@
 import { Eye, RefreshCcw, Search, ShieldCheck, Trash2, Upload, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { documentPermissionsApi, documentsApi, usersApi } from "../api/client.js";
 import { Modal } from "../components/Modal.jsx";
@@ -45,6 +45,7 @@ export function Documents() {
   const [users, setUsers] = useState([]);
   const [accessForm, setAccessForm] = useState({ userId: "", permission: "read" });
   const selectAllRef = useRef(null);
+  const [searchParams, setSearchParams] = useSearchParams();
   const currentUser = getCurrentUser();
   const isAdmin = currentUser?.role === "admin";
 
@@ -71,6 +72,12 @@ export function Documents() {
   useEffect(() => {
     loadDocuments();
   }, [loadDocuments]);
+
+  useEffect(() => {
+    if (searchParams.get("upload") !== "1") return;
+    setUploadOpen(true);
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -200,7 +207,12 @@ export function Documents() {
         );
       }
       if (failedCount > 0) {
-        setLoadError(`${failedCount} selected document${failedCount === 1 ? "" : "s"} could not be updated.`);
+        const firstErrorMessage = results.find((result) => result.status === "rejected")?.reason?.message;
+        setLoadError(
+          `${failedCount} selected document${failedCount === 1 ? "" : "s"} could not be updated.${
+            firstErrorMessage ? ` ${firstErrorMessage}` : ""
+          }`,
+        );
       }
     } finally {
       setBulkAccessLoading(false);
@@ -214,11 +226,9 @@ export function Documents() {
           <h1 className="text-3xl font-black text-med-text">Documents</h1>
           <p className="mt-1 text-med-muted">Store, organize, and discover internal knowledge.</p>
         </div>
-        {isAdmin && (
-          <button className="primary-button" type="button" onClick={() => setUploadOpen(true)}>
-            <Upload size={18} /> Upload Document
-          </button>
-        )}
+        <button className="primary-button" type="button" onClick={() => setUploadOpen(true)}>
+          <Upload size={18} /> Upload Document
+        </button>
       </header>
 
       <section className="rounded-lg border border-med-border bg-white shadow-soft">
@@ -358,7 +368,7 @@ export function Documents() {
         </footer>
       </section>
 
-      {uploadOpen && isAdmin && <UploadDocumentModal onClose={() => setUploadOpen(false)} onUploaded={handleUploaded} />}
+      {uploadOpen && <UploadDocumentModal onClose={() => setUploadOpen(false)} onUploaded={handleUploaded} />}
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 w-[min(420px,calc(100vw-48px))] rounded-xl border border-med-border bg-white p-4 shadow-glass">
           <button className="absolute right-3 top-3 text-med-muted" type="button" onClick={() => setToast("")}><X size={16} /></button>

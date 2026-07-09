@@ -170,6 +170,10 @@ export const usersApi = {
     method: "PATCH",
     body: JSON.stringify(payload),
   }),
+  documents: (id, params = {}) => request(`/api/users/${id}/documents${buildQuery({
+    page: params.page || 1,
+    page_size: params.page_size || 50,
+  })}`),
   softDelete: (id) => request(`/api/users/${id}/soft-delete`, { method: "PATCH" }),
   restore: (id) => request(`/api/users/${id}/restore`, { method: "PATCH" }),
   remove: (id) => request(`/api/users/${id}`, { method: "DELETE" }),

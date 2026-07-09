@@ -1,5 +1,6 @@
-import { Activity, Pencil, Search, Shield, Trash2, UserCheck, UserPlus, UserX, UsersRound, X } from "lucide-react";
+import { Activity, FileText, Pencil, Search, Shield, Trash2, UserCheck, UserPlus, UserX, UsersRound, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { authApi, usersApi } from "../api/client.js";
 import { Modal } from "../components/Modal.jsx";
@@ -21,6 +22,15 @@ function formatUserCount(count) {
   return `${count} user${count === 1 ? "" : "s"}`;
 }
 
+const categoryLabels = {
+  "coding-convention": "Coding convention",
+  "git-flow": "Git flow",
+  "pull-request": "Pull request",
+  database: "Database",
+  "api-standard": "API standard",
+  logging: "Logging",
+};
+
 export function AdminUsers() {
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(getCurrentUser());
@@ -33,6 +43,7 @@ export function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [documentUser, setDocumentUser] = useState(null);
 
   const currentUserId = currentUser?.id ? String(currentUser.id) : "";
   const currentUserEmail = currentUser?.email ? String(currentUser.email).toLowerCase() : "";
@@ -100,6 +111,7 @@ export function AdminUsers() {
   }, [accountView, query, role]);
 
   const selectedUsers = filteredUsers.filter((user) => selectedIds.includes(user.id));
+  const selectedNonAdminUsers = selectedUsers.filter((user) => user.role !== "admin");
   const selectedCount = selectedUsers.length;
 
   function rememberCurrentUser(updated) {
@@ -118,7 +130,7 @@ export function AdminUsers() {
     updatedUsers.forEach((updated) => rememberCurrentUser(updated));
   }
 
-  function summarizeBulkResult(results, successLabel, failureLabel, skippedSelf = false) {
+  function summarizeBulkResult(results, successLabel, failureLabel, skippedSelf = false, skippedAdmin = false) {
     const successful = results
       .filter((result) => result.status === "fulfilled")
       .map((result) => result.value);
@@ -134,6 +146,9 @@ export function AdminUsers() {
     }
     if (skippedSelf) {
       messages.push("Skipped your own account.");
+    }
+    if (skippedAdmin) {
+      messages.push("Skipped admin accounts.");
     }
     if (messages.length > 0) {
       setFeedback(messages.join(" "));
@@ -189,11 +204,12 @@ export function AdminUsers() {
   async function deactivateSelectedUsers() {
     if (selectedUsers.length === 0) return;
 
-    const targetUsers = selectedUsers.filter((user) => !isCurrentUser(user));
-    const skippedSelf = targetUsers.length !== selectedUsers.length;
+    const targetUsers = selectedUsers.filter((user) => user.role !== "admin" && !isCurrentUser(user));
+    const skippedSelf = selectedUsers.some((user) => isCurrentUser(user));
+    const skippedAdmin = selectedUsers.some((user) => user.role === "admin");
 
     if (targetUsers.length === 0) {
-      setFeedback("You cannot deactivate your own account.");
+      setFeedback(skippedAdmin ? "Admin accounts cannot be deactivated from this screen." : "You cannot deactivate your own account.");
       return;
     }
     if (!window.confirm(`Deactivate ${targetUsers.length} selected user${targetUsers.length === 1 ? "" : "s"}?`)) return;
@@ -204,7 +220,7 @@ export function AdminUsers() {
       const results = await Promise.allSettled(
         targetUsers.map((user) => usersApi.softDelete(user.id)),
       );
-      const deactivated = summarizeBulkResult(results, "Deactivated", "Could not deactivate", skippedSelf);
+      const deactivated = summarizeBulkResult(results, "Deactivated", "Could not deactivate", skippedSelf, skippedAdmin);
       setSelectedIds((current) => current.filter((id) => !deactivated.some((user) => user.id === id)));
     } finally {
       setBulkActionLoading(false);
@@ -230,11 +246,12 @@ export function AdminUsers() {
   async function deleteSelectedUsers() {
     if (selectedUsers.length === 0) return;
 
-    const targetUsers = selectedUsers.filter((user) => !isCurrentUser(user));
-    const skippedSelf = targetUsers.length !== selectedUsers.length;
+    const targetUsers = selectedUsers.filter((user) => user.role !== "admin" && !isCurrentUser(user));
+    const skippedSelf = selectedUsers.some((user) => isCurrentUser(user));
+    const skippedAdmin = selectedUsers.some((user) => user.role === "admin");
 
     if (targetUsers.length === 0) {
-      setFeedback("You cannot hard delete your own account.");
+      setFeedback(skippedAdmin ? "Admin accounts cannot be hard deleted from this screen." : "You cannot hard delete your own account.");
       return;
     }
     if (!window.confirm(`Permanently delete ${targetUsers.length} selected user${targetUsers.length === 1 ? "" : "s"}?`)) return;
@@ -261,6 +278,9 @@ export function AdminUsers() {
       }
       if (skippedSelf) {
         messages.push("Skipped your own account.");
+      }
+      if (skippedAdmin) {
+        messages.push("Skipped admin accounts.");
       }
       if (messages.length > 0) {
         setFeedback(messages.join(" "));
@@ -399,12 +419,11 @@ export function AdminUsers() {
                   <button className="secondary-button" disabled={bulkActionLoading} type="button" onClick={() => updateSelectedUsers({ role: "admin" }, "Updated role for", "Could not update role for")}>
                     <Shield size={16} /> Make admin
                   </button>
-                  <button className="secondary-button" disabled={bulkActionLoading} type="button" onClick={() => updateSelectedUsers({ role: "user" }, "Updated role for", "Could not update role for", { protectSelfRoleDemotion: true })}>
-                    <UsersRound size={16} /> Make user
-                  </button>
-                  <button className="secondary-button" disabled={bulkActionLoading} type="button" onClick={deactivateSelectedUsers}>
-                    <UserX size={16} /> Deactivate
-                  </button>
+                  {selectedNonAdminUsers.length > 0 && (
+                    <button className="secondary-button" disabled={bulkActionLoading} type="button" onClick={deactivateSelectedUsers}>
+                      <UserX size={16} /> Deactivate
+                    </button>
+                  )}
                   <button className="secondary-button" disabled={bulkActionLoading} type="button" onClick={() => updateSelectedUsers({ is_email_verified: true }, "Verified", "Could not verify")}>
                     <UserCheck size={16} /> Verify
                   </button>
@@ -414,9 +433,11 @@ export function AdminUsers() {
                   <button className="secondary-button" disabled={bulkActionLoading} type="button" onClick={restoreSelectedUsers}>
                     <UserCheck size={16} /> Restore
                   </button>
-                  <button className="danger-button" disabled={bulkActionLoading} type="button" onClick={deleteSelectedUsers}>
-                    <Trash2 size={16} /> {bulkActionLoading ? "Working..." : "Hard delete"}
-                  </button>
+                  {selectedNonAdminUsers.length > 0 && (
+                    <button className="danger-button" disabled={bulkActionLoading} type="button" onClick={deleteSelectedUsers}>
+                      <Trash2 size={16} /> {bulkActionLoading ? "Working..." : "Hard delete"}
+                    </button>
+                  )}
                 </>
               )}
               <button className="secondary-button" type="button" onClick={() => setSelectedIds([])}>
@@ -437,6 +458,7 @@ export function AdminUsers() {
           onToggleSelection={toggleUserSelection}
           onToggleTable={toggleTableUsers}
           onToggleUser={toggleUser}
+          onViewDocuments={setDocumentUser}
           selectedIds={selectedIds}
           subtitle={accountView === "deactivated" ? "Deactivated privileged accounts" : "Privileged accounts"}
           title="Admin users"
@@ -454,6 +476,7 @@ export function AdminUsers() {
           onToggleSelection={toggleUserSelection}
           onToggleTable={toggleTableUsers}
           onToggleUser={toggleUser}
+          onViewDocuments={setDocumentUser}
           selectedIds={selectedIds}
           subtitle={accountView === "deactivated" ? "Deactivated standard accounts" : "Standard accounts"}
           title="Standard users"
@@ -483,6 +506,12 @@ export function AdminUsers() {
           onSaved={applyCreatedUser}
         />
       )}
+      {documentUser && (
+        <UserDocumentsModal
+          user={documentUser}
+          onClose={() => setDocumentUser(null)}
+        />
+      )}
     </div>
   );
 }
@@ -498,6 +527,7 @@ function UserTableSection({
   onToggleSelection,
   onToggleTable,
   onToggleUser,
+  onViewDocuments,
   selectedIds,
   subtitle,
   title,
@@ -547,7 +577,8 @@ function UserTableSection({
             {!loading && users.map((user) => {
               const currentStatus = statusFor(user);
               const isSelf = isCurrentUser(user);
-              const canUseDangerAction = !isSelf;
+              const isAdminAccount = user.role === "admin";
+              const canUseDangerAction = !isSelf && !isAdminAccount;
               return (
                 <tr className={`hover:bg-med-bg ${selectedIds.includes(user.id) ? "bg-teal-50/70" : ""}`} key={user.id}>
                   <td className="border-b border-med-border p-4">
@@ -559,7 +590,11 @@ function UserTableSection({
                     />
                   </td>
                   <td className="border-b border-med-border p-4">
-                    <div className="flex items-center gap-3">
+                    <button
+                      className="flex w-full items-center gap-3 rounded-lg text-left transition hover:text-med-primary focus:outline-none focus:ring-2 focus:ring-med-primary focus:ring-offset-2"
+                      type="button"
+                      onClick={() => onViewDocuments(user)}
+                    >
                       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-med-primary text-sm font-black text-white">{initials(user.full_name || user.email)}</span>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -567,7 +602,7 @@ function UserTableSection({
                           {isSelf && <StatusChip tone="teal">You</StatusChip>}
                         </div>
                       </div>
-                    </div>
+                    </button>
                   </td>
                   <td className="border-b border-med-border p-4 text-sm text-med-muted">{user.email}</td>
                   <td className="border-b border-med-border p-4"><StatusChip tone={roleTone(user.role)}>{user.role}</StatusChip></td>
@@ -576,41 +611,47 @@ function UserTableSection({
                   <td className="border-b border-med-border p-4 text-sm text-med-muted">{formatDate(user.created_at)}</td>
                   <td className="border-b border-med-border p-4">
                     <div className="flex flex-wrap gap-2">
+                      <button className="secondary-button h-9 min-h-9 px-3 text-xs" type="button" onClick={() => onViewDocuments(user)}>
+                        <FileText size={15} /> Documents
+                      </button>
                       {accountView === "active" ? (
                         <>
                           <button className="secondary-button h-9 min-h-9 px-3 text-xs" type="button" onClick={() => onEditUser(user)}><Pencil size={15} /> Edit</button>
-                          <button
-                            className="secondary-button h-9 min-h-9 px-3 text-xs"
-                            disabled={isSelf}
-                            title={isSelf ? "You cannot remove your own admin role here." : undefined}
-                            type="button"
-                            onClick={() => onPromoteUser(user)}
-                          >
-                            {user.role === "admin" ? <UsersRound size={15} /> : <Shield size={15} />}
-                            {user.role === "admin" ? "Make User" : "Make Admin"}
-                          </button>
-                          <button
-                            className="secondary-button h-9 min-h-9 px-3 text-xs"
-                            disabled={!canUseDangerAction}
-                            title={isSelf ? "You cannot deactivate your own account." : undefined}
-                            type="button"
-                            onClick={() => onToggleUser(user)}
-                          >
-                            <UserX size={15} /> Deactivate
-                          </button>
+                          {!isAdminAccount && (
+                            <button
+                              className="secondary-button h-9 min-h-9 px-3 text-xs"
+                              type="button"
+                              onClick={() => onPromoteUser(user)}
+                            >
+                              <Shield size={15} /> Make Admin
+                            </button>
+                          )}
+                          {!isAdminAccount && (
+                            <button
+                              className="secondary-button h-9 min-h-9 px-3 text-xs"
+                              disabled={!canUseDangerAction}
+                              title={isSelf ? "You cannot deactivate your own account." : undefined}
+                              type="button"
+                              onClick={() => onToggleUser(user)}
+                            >
+                              <UserX size={15} /> Deactivate
+                            </button>
+                          )}
                         </>
                       ) : (
                         <>
                           <button className="secondary-button h-9 min-h-9 px-3 text-xs" type="button" onClick={() => onToggleUser(user)}><UserCheck size={15} /> Restore</button>
-                          <button
-                            className="danger-button h-9 min-h-9 px-3 text-xs"
-                            disabled={!canUseDangerAction}
-                            title={isSelf ? "You cannot hard delete your own account." : undefined}
-                            type="button"
-                            onClick={() => onDeleteUser(user)}
-                          >
-                            <Trash2 size={15} /> Hard delete
-                          </button>
+                          {!isAdminAccount && (
+                            <button
+                              className="danger-button h-9 min-h-9 px-3 text-xs"
+                              disabled={!canUseDangerAction}
+                              title={isSelf ? "You cannot hard delete your own account." : undefined}
+                              type="button"
+                              onClick={() => onDeleteUser(user)}
+                            >
+                              <Trash2 size={15} /> Hard delete
+                            </button>
+                          )}
                         </>
                       )}
                     </div>
@@ -629,6 +670,103 @@ function UserTableSection({
         </table>
       </div>
     </section>
+  );
+}
+
+function UserDocumentsModal({ user, onClose }) {
+  const [documents, setDocuments] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    setError("");
+
+    usersApi.documents(user.id, { page_size: 100 })
+      .then((data) => {
+        if (!isMounted) return;
+        setDocuments(data.items || []);
+        setTotal(data.total || 0);
+      })
+      .catch((loadError) => {
+        if (isMounted) setError(loadError.message);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user.id]);
+
+  return (
+    <Modal title="User documents" subtitle={user.full_name || user.email} onClose={onClose} footer={(
+      <button className="secondary-button" type="button" onClick={onClose}>Close</button>
+    )}>
+      <div className="grid gap-4">
+        <div className="grid grid-cols-3 gap-3 text-sm max-md:grid-cols-1">
+          <div className="rounded-lg bg-med-bg p-4">
+            <p className="font-bold text-med-muted">Visible documents</p>
+            <p className="mt-1 text-2xl font-black text-med-text">{total}</p>
+          </div>
+          <div className="rounded-lg bg-med-bg p-4">
+            <p className="font-bold text-med-muted">Role</p>
+            <p className="mt-2"><StatusChip tone={roleTone(user.role)}>{user.role}</StatusChip></p>
+          </div>
+          <div className="rounded-lg bg-med-bg p-4">
+            <p className="font-bold text-med-muted">Status</p>
+            <p className="mt-2"><StatusChip tone={statusFor(user) === "Active" ? "green" : "gray"}>{statusFor(user)}</StatusChip></p>
+          </div>
+        </div>
+
+        {error && <p className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm font-semibold text-med-error">{error}</p>}
+
+        <div className="max-h-[390px] overflow-auto rounded-lg border border-med-border">
+          <table className="w-full min-w-[720px] border-collapse">
+            <thead>
+              <tr className="text-left text-xs font-black uppercase tracking-wide text-med-muted">
+                {["Document", "Category", "File type", "Created", "Action"].map((heading) => (
+                  <th className="sticky top-0 z-10 border-b border-med-border bg-white p-4" key={heading}>{heading}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading && <TableSkeletonRows columns={5} rows={3} />}
+              {!loading && documents.map((document) => (
+                <tr className="hover:bg-med-bg" key={document.id}>
+                  <td className="border-b border-med-border p-4">
+                    <p className="font-black text-med-text">{document.name}</p>
+                    <p className="text-sm text-med-muted">{document.file_name || "knowledge-base.md"}</p>
+                  </td>
+                  <td className="border-b border-med-border p-4">
+                    <StatusChip tone={String(document.category).includes("database") ? "teal" : "blue"}>
+                      {categoryLabels[document.category] || document.category}
+                    </StatusChip>
+                  </td>
+                  <td className="border-b border-med-border p-4 text-sm text-med-muted">{document.file_type || "text/markdown"}</td>
+                  <td className="border-b border-med-border p-4 text-sm text-med-muted">{formatDate(document.created_at)}</td>
+                  <td className="border-b border-med-border p-4">
+                    <Link className="secondary-button h-9 min-h-9 px-3 text-xs" to={`/documents/${document.id}`}>
+                      <FileText size={15} /> Open
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+              {!loading && documents.length === 0 && (
+                <tr>
+                  <td className="p-8 text-center text-sm font-semibold text-med-muted" colSpan="5">
+                    This user does not currently have any visible documents.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

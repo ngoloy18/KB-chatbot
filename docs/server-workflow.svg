@@ -232,7 +232,7 @@
 
   <rect class="accent-soft" x="360" y="855" width="235" height="195" rx="12" />
   <text class="box-title" x="380" y="885">2. Document upload</text>
-  <text class="text" x="380" y="915">admin -> multipart .md file</text>
+  <text class="text" x="380" y="915">user -> multipart .md file</text>
   <text class="text" x="380" y="939">validate size + UTF-8</text>
   <text class="text" x="380" y="963">save file under uploads/</text>
   <text class="text" x="380" y="987">checksum duplicate guard</text>

@@ -24,7 +24,7 @@ Important correction: the HTML spec says to explain "Long-Context instead of Emb
 | --- | --- | --- |
 | 0:00-2:00 | Product intro | What the app is, why it exists, who uses it |
 | 2:00-4:00 | Architecture | React UI, FastAPI, PostgreSQL, pgvector, Gemini |
-| 4:00-6:00 | Upload flow | Admin uploads markdown, server chunks and embeds automatically |
+| 4:00-6:00 | Upload flow | User uploads markdown, server chunks and embeds automatically |
 | 6:00-10:00 | Chat demo | Ask 3-4 questions, show answers and sources |
 | 10:00-11:00 | Edge case | Ask outside-docs question, show refusal to hallucinate |
 | 11:00-13:00 | Security and database | JWT, refresh tokens, user isolation, source citations |
@@ -61,7 +61,7 @@ Claim: "The server supports the full demo loop: auth, upload, retrieval, answer,
 Show or say:
 
 - Login and JWT auth
-- Admin markdown document upload
+- Authenticated markdown document upload
 - Automatic chunking and embeddings
 - Semantic retrieval with pgvector
 - Gemini answer generation
@@ -129,7 +129,7 @@ Claim: "New documents become searchable immediately after upload."
 Flow:
 
 ```text
-Admin uploads .md file
+User uploads .md file
   -> validate file type and size
   -> save local file
   -> create document row
@@ -142,7 +142,7 @@ Admin uploads .md file
 
 What to emphasize:
 
-- Upload is admin-only.
+- Normal users own their uploads, and admins can see every document.
 - Only markdown is accepted right now.
 - Duplicate content is checked by checksum.
 - The server automatically chunks and embeds during create/update.
@@ -202,14 +202,14 @@ What is implemented:
 - Admin and normal user roles
 - Document permissions: `read`, `write`, `owner`
 - Chat sessions scoped by `current_user.id`
-- Admin-only upload
+- User-owned document uploads
 - Rate limiting for sensitive auth/upload endpoints
 - Audit logging for important actions
 
 Demo proof:
 
 - Normal user can only see sessions they own.
-- Normal user can only retrieve documents they have permission to read.
+- Normal user can retrieve documents they uploaded or have permission to read.
 - Admin can manage document permissions.
 
 ### Slide 10: Live Demo Script
@@ -450,7 +450,7 @@ Access tokens are short-lived for safer API calls. Refresh tokens let the user s
 
 ### How do you prevent users from seeing each other's data?
 
-Chat sessions are scoped to `current_user.id`, and document retrieval checks document permissions before returning chunks to normal users.
+Chat sessions are scoped to `current_user.id`, and document retrieval checks ownership plus document permissions before returning chunks to normal users.
 
 ### How do citations work?
 
@@ -459,4 +459,3 @@ The server tracks retrieved chunks as sources. When Gemini returns the answer, t
 ### What is the biggest risk?
 
 Retrieval quality. If the wrong chunk is retrieved, the model may answer from the wrong evidence. The next improvement is a retrieval evaluation set that checks expected answer and expected source.
-

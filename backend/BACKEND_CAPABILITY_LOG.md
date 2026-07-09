@@ -246,7 +246,9 @@ All document routes require an authenticated user.
 Upload:
 
 - Endpoint: `POST /api/documents/upload`
-- Admin only.
+- Requires any authenticated user.
+- Normal users automatically own documents they upload.
+- Admin users can see every document.
 - Multipart form fields: `name`, `category`, `file`.
 - File must be UTF-8 text.
 - File extension must currently be `.md`.
@@ -258,7 +260,7 @@ List/search:
 
 - `GET /api/documents`
 - Query filters: `name`, `category`, `page`, `page_size`.
-- Normal users only see documents they can access.
+- Normal users only see documents they own or have permission to access.
 - Admin users can see all documents.
 - `GET /api/documents/search?q=...` searches document chunks.
 
@@ -416,9 +418,10 @@ Build these screens first:
 - Chat
 - Chat history
 - Documents list/search/detail
+- User-owned document upload
 - Admin users table
 - Admin user update/role/activate/delete actions
-- Admin document upload/update/delete/restore/version history
+- Document upload/update/delete/restore/version history
 - Admin document permissions
 
 Do not build these as real features unless the backend adds them:

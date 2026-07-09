@@ -12,7 +12,10 @@ from sqlalchemy.orm import selectinload
 from app.constants.documents import DOCUMENT_STATUS_READY
 from app.constants.database import SCHEMA_NAME
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
-from app.constants.permissions import DOCUMENT_READ_PERMISSIONS
+from app.constants.permissions import (
+    DOCUMENT_PERMISSION_OWNER,
+    DOCUMENT_READ_PERMISSIONS,
+)
 from app.core.config import DocumentCategory
 from app.models.database import (
     Document,
@@ -66,18 +69,11 @@ class DocumentRepository:
             filters.append(Document.title.ilike(f"%{name}%"))
         if category is not None:
             filters.append(DocumentCategoryModel.name == category.value)
-        if user_id is not None and not include_all:
-            # Normal users only see documents where admin granted read-level access.
-            filters.append(
-                Document.id.in_(
-                    select(DocumentPermission.document_id).where(
-                        and_(
-                            DocumentPermission.user_id == user_id,
-                            DocumentPermission.permission.in_(DOCUMENT_READ_PERMISSIONS),
-                        )
-                    )
-                )
-            )
+        if not include_all:
+            if user_id is None:
+                filters.append(false())
+            else:
+                filters.append(_readable_document_filter(user_id))
 
         # Count first so the response can include the total matching rows.
         total_query = (
@@ -124,6 +120,8 @@ class DocumentRepository:
         db: AsyncSession,
         checksum: str,
         exclude_document_id: UUID | None = None,
+        user_id: UUID | None = None,
+        include_all: bool = True,
     ) -> Document | None:
         """Return an active document with the same checksum if one exists."""
 
@@ -133,8 +131,34 @@ class DocumentRepository:
         ]
         if exclude_document_id is not None:
             filters.append(Document.id != exclude_document_id)
+        if not include_all:
+            if user_id is None:
+                filters.append(false())
+            else:
+                filters.append(_readable_document_filter(user_id))
         query = select(Document).where(*filters)
         return await db.scalar(query)
+
+    async def list_visible_document_titles(
+        self,
+        db: AsyncSession,
+        user_id: UUID | None = None,
+        include_all: bool = False,
+        exclude_document_id: UUID | None = None,
+    ) -> set[str]:
+        """Return active document titles visible in one user's document list."""
+
+        filters = [Document.is_deleted.is_(False)]
+        if exclude_document_id is not None:
+            filters.append(Document.id != exclude_document_id)
+        if not include_all:
+            if user_id is None:
+                filters.append(false())
+            else:
+                filters.append(_readable_document_filter(user_id))
+
+        rows = await db.scalars(select(Document.title).where(*filters))
+        return set(rows.all())
 
     async def list_documents_for_context(
         self,
@@ -155,18 +179,7 @@ class DocumentRepository:
             if user_id is None:
                 filters.append(false())
             else:
-                filters.append(
-                    Document.id.in_(
-                        select(DocumentPermission.document_id).where(
-                            and_(
-                                DocumentPermission.user_id == user_id,
-                                DocumentPermission.permission.in_(
-                                    DOCUMENT_READ_PERMISSIONS
-                                ),
-                            )
-                        )
-                    )
-                )
+                filters.append(_readable_document_filter(user_id))
 
         query = (
             select(Document)
@@ -197,18 +210,11 @@ class DocumentRepository:
         ]
         if category is not None:
             filters.append(DocumentCategoryModel.name == category.value)
-        if user_id is not None and not include_all:
-            # Normal users only search chunks from documents they can read.
-            filters.append(
-                Document.id.in_(
-                    select(DocumentPermission.document_id).where(
-                        and_(
-                            DocumentPermission.user_id == user_id,
-                            DocumentPermission.permission.in_(DOCUMENT_READ_PERMISSIONS),
-                        )
-                    )
-                )
-            )
+        if not include_all:
+            if user_id is None:
+                filters.append(false())
+            else:
+                filters.append(_readable_document_filter(user_id))
 
         total_query = (
             select(func.count())
@@ -265,16 +271,7 @@ class DocumentRepository:
             Document.is_deleted.is_(False),
         ]
         if user_id is not None and not include_all:
-            filters.append(
-                Document.id.in_(
-                    select(DocumentPermission.document_id).where(
-                        and_(
-                            DocumentPermission.user_id == user_id,
-                            DocumentPermission.permission.in_(DOCUMENT_READ_PERMISSIONS),
-                        )
-                    )
-                )
-            )
+            filters.append(_readable_document_filter(user_id))
         elif not include_all:
             filters.append(false())
 
@@ -334,12 +331,15 @@ class DocumentRepository:
         }
         if user_id is not None and not include_all:
             permission_clause = f"""
-                AND EXISTS (
-                    SELECT 1
-                    FROM {SCHEMA_NAME}.document_permissions AS p
-                    WHERE p.document_id = d.id
-                      AND p.user_id = CAST(:user_id AS uuid)
-                      AND p.permission IN ('read', 'write', 'owner')
+                AND (
+                    d.created_by = CAST(:user_id AS uuid)
+                    OR EXISTS (
+                        SELECT 1
+                        FROM {SCHEMA_NAME}.document_permissions AS p
+                        WHERE p.document_id = d.id
+                          AND p.user_id = CAST(:user_id AS uuid)
+                          AND p.permission IN ('read', 'write', 'owner')
+                    )
                 )
             """
             params["user_id"] = str(user_id)
@@ -470,14 +470,25 @@ class DocumentRepository:
     ) -> bool:
         """Return whether a user has one of the allowed permissions."""
 
-        query = select(func.count()).select_from(DocumentPermission).where(
+        permission_query = select(func.count()).select_from(DocumentPermission).where(
             and_(
                 DocumentPermission.document_id == document_id,
                 DocumentPermission.user_id == user_id,
                 DocumentPermission.permission.in_(allowed_permissions),
             )
         )
-        return (await db.scalar(query) or 0) > 0
+        if (await db.scalar(permission_query) or 0) > 0:
+            return True
+
+        if DOCUMENT_PERMISSION_OWNER not in allowed_permissions:
+            return False
+        owner_query = select(func.count()).select_from(Document).where(
+            and_(
+                Document.id == document_id,
+                Document.created_by == user_id,
+            )
+        )
+        return (await db.scalar(owner_query) or 0) > 0
 
     async def get_category_by_name(
         self,
@@ -496,6 +507,7 @@ class DocumentRepository:
         db: AsyncSession,
         payload: DocumentCreate,
         category: DocumentCategoryModel,
+        created_by: UUID | None = None,
     ) -> Document:
         """Build and insert one document row into PostgreSQL."""
 
@@ -510,6 +522,7 @@ class DocumentRepository:
             content_checksum=payload.content_checksum,
             content=payload.content,
             status=DOCUMENT_STATUS_READY,
+            created_by=created_by,
         )
 
         # Add stages the object; commit writes the INSERT to PostgreSQL.
@@ -723,6 +736,22 @@ class DocumentRepository:
 
 
 document_repository = DocumentRepository()
+
+
+def _readable_document_filter(user_id: UUID):
+    """Return the normal-user document visibility condition."""
+
+    return or_(
+        Document.created_by == user_id,
+        Document.id.in_(
+            select(DocumentPermission.document_id).where(
+                and_(
+                    DocumentPermission.user_id == user_id,
+                    DocumentPermission.permission.in_(DOCUMENT_READ_PERMISSIONS),
+                )
+            )
+        ),
+    )
 
 
 def _serialize_embedding(embedding: list[float] | None) -> str | None:

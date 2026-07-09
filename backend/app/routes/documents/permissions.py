@@ -13,6 +13,7 @@ from app.schemas.documents.schemas import (
 from app.services import document_service
 from app.services.audit import audit_service
 from app.services.documents.exceptions import (
+    DocumentAccessConflictError,
     DocumentNotFoundError,
     DocumentPermissionNotFoundError,
 )
@@ -76,6 +77,8 @@ async def grant_document_permission(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     except UserNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except DocumentAccessConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
 
 @router.delete(

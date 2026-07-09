@@ -26,3 +26,9 @@ class DocumentDuplicateError(ValueError):
     """Raised when an active document already has the same checksum."""
 
     pass
+
+
+class DocumentAccessConflictError(ValueError):
+    """Raised when granting access would duplicate visible document content."""
+
+    pass

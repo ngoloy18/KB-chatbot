@@ -21,7 +21,7 @@ from app.constants.documents import (
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.core.config import DocumentCategory, settings
 from app.db.session import get_db
-from app.dependencies.auth import get_current_user, require_admin
+from app.dependencies.auth import get_current_user
 from app.models.database import User
 from app.schemas.documents.schemas import (
     DocumentCreate,
@@ -86,8 +86,8 @@ def cleanup_saved_upload(file_path: str | None) -> None:
             logger.exception("event=document.upload_cleanup_failed path=%s", file_path)
 
 
-def validate_admin_upload(file: UploadFile, file_bytes: bytes) -> None:
-    """Validate Week 3 admin upload file rules."""
+def validate_document_upload(file: UploadFile, file_bytes: bytes) -> None:
+    """Validate document upload file rules."""
 
     original_name = Path(file.filename or "").name
     extension = Path(original_name).suffix.lower()
@@ -114,7 +114,7 @@ async def build_document_payload_from_upload(
     # FastAPI's async request handling.
     file_bytes = await file.read()
     if require_markdown:
-        validate_admin_upload(file, file_bytes)
+        validate_document_upload(file, file_bytes)
 
     try:
         # Store document content as text; non-UTF-8 files are rejected clearly.
@@ -288,16 +288,19 @@ async def get_document(
     "/upload",
     response_model=DocumentResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Upload a markdown document as admin",
-    description="Admin-only upload endpoint that accepts .md files up to 10MB.",
+    summary="Upload a markdown document",
+    description=(
+        "Authenticated upload endpoint that accepts .md files up to 10MB. "
+        "Normal users own their uploads; admins can see every document."
+    ),
 )
-async def upload_document_as_admin(
+async def upload_document(
     request: DocumentUploadRequest = Depends(DocumentUploadRequest.as_form),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ) -> DocumentResponse:
-    """Create a document from a validated admin markdown upload."""
+    """Create a private document from a validated markdown upload."""
 
     payload = await build_document_payload_from_upload(
         request=request,
@@ -305,16 +308,21 @@ async def upload_document_as_admin(
         require_markdown=True,
     )
     try:
-        document = await document_service.create_document(db, payload)
+        document = await document_service.create_document(
+            db=db,
+            payload=payload,
+            current_user_id=current_user.id,
+            is_admin=current_user.role == USER_ROLE_ADMIN,
+        )
         logger.info(
-            "event=document.upload_created document_id=%s admin_id=%s",
+            "event=document.upload_created document_id=%s user_id=%s",
             document.id,
-            current_admin.id,
+            current_user.id,
         )
         await audit_service.safe_record(
             db=db,
             action="document.upload_created",
-            actor_user_id=current_admin.id,
+            actor_user_id=current_user.id,
             resource_type="document",
             resource_id=document.id,
             details={

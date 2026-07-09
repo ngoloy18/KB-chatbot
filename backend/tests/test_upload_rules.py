@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 from uuid import uuid4
 from urllib.error import HTTPError
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
@@ -113,8 +114,9 @@ def run_upload_rule_test() -> None:
     env = load_env()
     suffix = uuid4().hex[:8]
     user_email = f"upload_user_{suffix}@example.com"
+    other_user_email = f"upload_other_{suffix}@example.com"
     password = "Password123!"
-    created_user_id = None
+    created_user_ids: list[str] = []
     created_document_ids: list[str] = []
     admin_token = login(env["INITIAL_ADMIN_EMAIL"], env["INITIAL_ADMIN_PASSWORD"])
 
@@ -129,7 +131,7 @@ def run_upload_rule_test() -> None:
             },
             expected_status={201},
         )
-        created_user_id = registered_user["user"]["id"]
+        created_user_ids.append(registered_user["user"]["id"])
         api_request(
             "POST",
             "/api/auth/verify-email",
@@ -137,17 +139,73 @@ def run_upload_rule_test() -> None:
         )
         user_token = login(user_email, password)
 
+        registered_other_user = api_request(
+            "POST",
+            "/api/auth/register",
+            json_body={
+                "email": other_user_email,
+                "password": password,
+                "full_name": "Other Upload Rule User",
+            },
+            expected_status={201},
+        )
+        created_user_ids.append(registered_other_user["user"]["id"])
         api_request(
+            "POST",
+            "/api/auth/verify-email",
+            json_body={"token": registered_other_user["verification_token"]},
+        )
+        other_user_token = login(other_user_email, password)
+
+        user_document_name = f"Normal User Upload {suffix}"
+        unique_phrase = f"normal-upload-private-{suffix}"
+        uploaded_by_user = api_request(
             "POST",
             "/api/documents/upload",
             token=user_token,
             multipart={
-                "name": f"Normal User Upload {suffix}",
+                "name": user_document_name,
                 "category": "api-standard",
-                "file": ("normal-user.md", b"# Should fail", "text/markdown"),
+                "file": (
+                    "normal-user.md",
+                    f"# User upload\n\nPrivate marker {unique_phrase}.".encode("utf-8"),
+                    "text/markdown",
+                ),
             },
+            expected_status={201},
+        )
+        created_document_ids.append(uploaded_by_user["id"])
+
+        api_request(
+            "GET",
+            f"/api/documents/{uploaded_by_user['id']}",
+            token=user_token,
+        )
+        api_request(
+            "GET",
+            f"/api/documents/{uploaded_by_user['id']}",
+            token=admin_token,
+        )
+        api_request(
+            "GET",
+            f"/api/documents/{uploaded_by_user['id']}",
+            token=other_user_token,
             expected_status={403},
         )
+        other_user_list = api_request(
+            "GET",
+            "/api/documents?" + urlencode({"name": user_document_name}),
+            token=other_user_token,
+        )
+        if other_user_list["total"] != 0:
+            raise AssertionError("Other users should not list private uploads.")
+        other_user_search = api_request(
+            "GET",
+            "/api/documents/search?" + urlencode({"q": unique_phrase}),
+            token=other_user_token,
+        )
+        if other_user_search["total"] != 0:
+            raise AssertionError("Other users should not search private upload chunks.")
 
         uploaded = api_request(
             "POST",
@@ -194,10 +252,10 @@ def run_upload_rule_test() -> None:
                 token=admin_token,
                 expected_status={204, 404},
             )
-        if created_user_id is not None:
+        for user_id in created_user_ids:
             api_request(
                 "DELETE",
-                f"/api/users/{created_user_id}",
+                f"/api/users/{user_id}",
                 token=admin_token,
                 expected_status={204, 404},
             )

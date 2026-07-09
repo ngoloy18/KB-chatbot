@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.permissions import (
     DOCUMENT_DELETE_PERMISSIONS,
+    DOCUMENT_PERMISSION_OWNER,
     DOCUMENT_READ_PERMISSIONS,
     DOCUMENT_WRITE_PERMISSIONS,
 )
@@ -30,6 +31,7 @@ from app.schemas.documents.schemas import (
     document_to_response,
 )
 from app.services.documents.exceptions import (
+    DocumentAccessConflictError,
     DocumentAccessDeniedError,
     DocumentCategoryNotFoundError,
     DocumentDuplicateError,
@@ -39,6 +41,9 @@ from app.services.documents.exceptions import (
 from app.services.documents.chunking import document_chunking_service
 from app.services.ai import AIProviderError, EmbeddingDocument, create_embedding_provider
 from app.services.users.exceptions import UserNotFoundError
+
+
+DOCUMENT_NAME_MAX_LENGTH = 120
 
 
 class DocumentService:
@@ -141,14 +146,29 @@ class DocumentService:
         self,
         db: AsyncSession,
         payload: DocumentCreate,
+        current_user_id: UUID | None = None,
+        is_admin: bool = False,
     ) -> DocumentResponse:
         """Create a new document."""
 
         checksum = payload.content_checksum or self._calculate_content_checksum(
             payload.content
         )
-        await self._raise_if_duplicate_checksum(db, checksum)
+        await self._raise_if_duplicate_checksum(
+            db,
+            checksum,
+            current_user_id=current_user_id,
+            is_admin=is_admin,
+        )
         payload = payload.model_copy(update={"content_checksum": checksum})
+        display_name = await self._resolve_visible_document_name(
+            db=db,
+            requested_name=payload.name,
+            current_user_id=current_user_id,
+            is_admin=is_admin,
+        )
+        if display_name != payload.name:
+            payload = payload.model_copy(update={"name": display_name})
 
         # Convert the public enum value into the category row's UUID foreign key.
         category = await document_repository.get_category_by_name(db, payload.category)
@@ -161,7 +181,15 @@ class DocumentService:
             db=db,
             payload=payload,
             category=category,
+            created_by=current_user_id,
         )
+        if current_user_id is not None:
+            await document_repository.upsert_permission(
+                db=db,
+                document_id=document.id,
+                user_id=current_user_id,
+                permission=DOCUMENT_PERMISSION_OWNER,
+            )
         await self._replace_document_chunks(db, document, payload.content)
         await document_repository.create_document_version(db, document)
         return document_to_response(document)
@@ -205,8 +233,20 @@ class DocumentService:
                 db,
                 checksum,
                 exclude_document_id=document_id,
+                current_user_id=current_user_id,
+                is_admin=is_admin,
             )
             payload = payload.model_copy(update={"content_checksum": checksum})
+        if payload.name is not None:
+            display_name = await self._resolve_visible_document_name(
+                db=db,
+                requested_name=payload.name,
+                current_user_id=current_user_id,
+                is_admin=is_admin,
+                exclude_document_id=document_id,
+            )
+            if display_name != payload.name:
+                payload = payload.model_copy(update={"name": display_name})
 
         document = await document_repository.update_document(
             db=db,
@@ -291,6 +331,8 @@ class DocumentService:
                 db,
                 document.content_checksum,
                 exclude_document_id=document.id,
+                current_user_id=current_user_id,
+                is_admin=is_admin,
             )
         restored = await document_repository.restore_document(db, document)
         return document_to_response(restored)
@@ -363,10 +405,15 @@ class DocumentService:
     ) -> DocumentPermissionResponse:
         """Grant or change one user's permission for a document."""
 
-        await self._get_document_or_raise(db, document_id)
+        document = await self._get_document_or_raise(db, document_id)
         user = await user_repository.get_by_id(db, payload.user_id)
         if user is None:
             raise UserNotFoundError("User not found.")
+        await self._raise_if_permission_would_duplicate_visible_content(
+            db=db,
+            document=document,
+            user_id=payload.user_id,
+        )
 
         permission = await document_repository.upsert_permission(
             db=db,
@@ -434,18 +481,92 @@ class DocumentService:
         db: AsyncSession,
         checksum: str,
         exclude_document_id: UUID | None = None,
+        current_user_id: UUID | None = None,
+        is_admin: bool = False,
     ) -> None:
         """Raise when another active document already has this checksum."""
 
+        include_all = is_admin or current_user_id is None
         duplicate = await document_repository.get_active_document_by_checksum(
             db,
             checksum,
             exclude_document_id=exclude_document_id,
+            user_id=current_user_id,
+            include_all=include_all,
         )
         if duplicate is not None:
+            if include_all:
+                raise DocumentDuplicateError(
+                    "An active document with the same content already exists: "
+                    f"{duplicate.id}."
+                )
             raise DocumentDuplicateError(
-                f"An active document with the same checksum already exists: {duplicate.id}."
+                "A document with the same content is already visible to this user."
             )
+
+    async def _resolve_visible_document_name(
+        self,
+        db: AsyncSession,
+        requested_name: str,
+        current_user_id: UUID | None,
+        is_admin: bool,
+        exclude_document_id: UUID | None = None,
+    ) -> str:
+        """Return a display name unique in the current user's visible documents."""
+
+        existing_titles = await document_repository.list_visible_document_titles(
+            db=db,
+            user_id=current_user_id,
+            include_all=is_admin or current_user_id is None,
+            exclude_document_id=exclude_document_id,
+        )
+        if requested_name not in existing_titles:
+            return requested_name
+
+        suffix_number = 1
+        while True:
+            suffix = f" ({suffix_number})"
+            base_name = requested_name[: DOCUMENT_NAME_MAX_LENGTH - len(suffix)].rstrip()
+            candidate = f"{base_name}{suffix}"
+            if candidate not in existing_titles:
+                return candidate
+            suffix_number += 1
+
+    async def _raise_if_permission_would_duplicate_visible_content(
+        self,
+        db: AsyncSession,
+        document: Document,
+        user_id: UUID,
+    ) -> None:
+        """Block shares that would add a second visible copy of the same content."""
+
+        already_can_read_target = await document_repository.user_has_document_permission(
+            db,
+            document.id,
+            user_id,
+            DOCUMENT_READ_PERMISSIONS,
+        )
+        if already_can_read_target or document.content_checksum is None:
+            return
+
+        duplicate = await document_repository.get_active_document_by_checksum(
+            db,
+            document.content_checksum,
+            exclude_document_id=document.id,
+            user_id=user_id,
+            include_all=False,
+        )
+        if duplicate is None:
+            return
+        if duplicate.created_by == user_id:
+            raise DocumentAccessConflictError(
+                "User already has a private copy of this document content. "
+                "Use existing copy, replace it, or archive duplicate."
+            )
+        raise DocumentAccessConflictError(
+            "User already has access to this document content. "
+            "Use existing copy, replace it, or archive duplicate."
+        )
 
     @staticmethod
     def _calculate_content_checksum(content: str) -> str:

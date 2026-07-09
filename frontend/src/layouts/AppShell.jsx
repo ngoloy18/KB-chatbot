@@ -97,11 +97,9 @@ export function AppShell() {
               <button className="quick-action" type="button" onClick={() => navigate("/chat")}>
                 <Plus size={16} /> New Chat <span>K</span>
               </button>
-              {isAdmin && (
-                <button className="quick-action" type="button" onClick={() => navigate("/documents")}>
-                  <Upload size={16} /> Upload Document <span>U</span>
-                </button>
-              )}
+              <button className="quick-action" type="button" onClick={() => navigate("/documents?upload=1")}>
+                <Upload size={16} /> Upload Document <span>U</span>
+              </button>
             </div>
           </section>
 
