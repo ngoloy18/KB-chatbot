@@ -83,6 +83,11 @@ class StubEmbeddingProvider:
         if "denied" in lowered_text:
             vector[1] = 1.0
             return vector
+        if "unavailable" in lowered_text:
+            # Keep the no-match scenario isolated now that admin documents are
+            # intentionally visible to every user in the database.
+            vector[2] = 1.0
+            return vector
         vector[0] = 1.0
         return vector
 
@@ -295,7 +300,7 @@ async def check_chat_flow() -> None:
             no_docs_response = await chat_service.chat(
                 db=db,
                 user_id=no_docs_user.id,
-                question=f"What says unavailable context {suffix}?",
+                question=f"unavailable-{suffix}",
                 is_admin=False,
             )
             if no_docs_response.answer != NOT_AVAILABLE_ANSWER:

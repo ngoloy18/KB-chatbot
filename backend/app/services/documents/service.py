@@ -177,22 +177,30 @@ class DocumentService:
                 f"Document category {payload.category.value} was not found in the database."
             )
 
-        document = await document_repository.create_document(
-            db=db,
-            payload=payload,
-            category=category,
-            created_by=current_user_id,
-        )
-        if current_user_id is not None:
-            await document_repository.upsert_permission(
+        try:
+            document = await document_repository.create_document(
                 db=db,
-                document_id=document.id,
-                user_id=current_user_id,
-                permission=DOCUMENT_PERMISSION_OWNER,
+                payload=payload,
+                category=category,
+                created_by=current_user_id,
+                is_global_read=is_admin,
             )
-        await self._replace_document_chunks(db, document, payload.content)
-        await document_repository.create_document_version(db, document)
-        return document_to_response(document)
+            if current_user_id is not None:
+                await document_repository.upsert_permission(
+                    db=db,
+                    document_id=document.id,
+                    user_id=current_user_id,
+                    permission=DOCUMENT_PERMISSION_OWNER,
+                    commit=False,
+                )
+            await self._replace_document_chunks(db, document, payload.content)
+            await document_repository.create_document_version(db, document)
+            response = document_to_response(document)
+            await db.commit()
+            return response
+        except Exception:
+            await db.rollback()
+            raise
 
     async def update_document(
         self,
@@ -248,16 +256,22 @@ class DocumentService:
             if display_name != payload.name:
                 payload = payload.model_copy(update={"name": display_name})
 
-        document = await document_repository.update_document(
-            db=db,
-            document=document,
-            payload=payload,
-            category=category,
-        )
-        if payload.content is not None:
-            await self._replace_document_chunks(db, document, payload.content)
-        await document_repository.create_document_version(db, document)
-        return document_to_response(document)
+        try:
+            document = await document_repository.update_document(
+                db=db,
+                document=document,
+                payload=payload,
+                category=category,
+            )
+            if payload.content is not None:
+                await self._replace_document_chunks(db, document, payload.content)
+            await document_repository.create_document_version(db, document)
+            response = document_to_response(document)
+            await db.commit()
+            return response
+        except Exception:
+            await db.rollback()
+            raise
 
     async def get_document_file_path_for_replacement(
         self,
@@ -266,9 +280,13 @@ class DocumentService:
         current_user_id: UUID | None = None,
         is_admin: bool = False,
     ) -> str | None:
-        """Return the saved file path for cleanup before a document is replaced."""
+        """Lock a document and return the file path that a replacement supersedes."""
 
-        document = await self._get_document_or_raise(db, document_id)
+        document = await self._get_document_or_raise(
+            db,
+            document_id,
+            for_update=True,
+        )
         await self._raise_if_cannot_update_document(
             db=db,
             document_id=document_id,
@@ -442,6 +460,7 @@ class DocumentService:
         db: AsyncSession,
         document_id: UUID,
         include_deleted: bool = False,
+        for_update: bool = False,
     ) -> Document:
         """Load one document or raise a service-level not-found error."""
 
@@ -449,6 +468,7 @@ class DocumentService:
             db,
             document_id,
             include_deleted=include_deleted,
+            for_update=for_update,
         )
         if document is None:
             raise DocumentNotFoundError(f"Document {document_id} was not found.")

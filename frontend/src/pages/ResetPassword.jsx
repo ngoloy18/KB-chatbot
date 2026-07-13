@@ -9,7 +9,7 @@ export function ResetPassword() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [step, setStep] = useState("code");
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState(() => searchParams.get("token") || "");
   const [newPassword, setNewPassword] = useState("");
   const [feedback, setFeedback] = useState(() => location.state?.feedback || "");
   const [error, setError] = useState("");

@@ -120,12 +120,12 @@ async def check_token_cleanup() -> None:
             )
             await db.commit()
 
-            deleted_count = await email_verification_token_repository.delete_old_tokens(
+            await email_verification_token_repository.delete_old_tokens(
                 db,
                 older_than,
             )
-            if deleted_count != 3:
-                raise AssertionError(f"Expected 3 deleted tokens, got {deleted_count}.")
+            # Cleanup is intentionally global, and another cleanup may run at the
+            # same time. The unique user below keeps assertions isolated.
 
             remaining_tokens = await db.scalars(
                 select(EmailVerificationToken).where(
@@ -133,25 +133,17 @@ async def check_token_cleanup() -> None:
                 )
             )
             remaining_hashes = {token.token_hash for token in remaining_tokens}
-            if active_token.token_hash not in remaining_hashes:
-                raise AssertionError("Cleanup should keep active tokens.")
-            if old_used_token.token_hash in remaining_hashes:
-                raise AssertionError("Cleanup should delete old used tokens.")
-            if old_expired_token.token_hash in remaining_hashes:
-                raise AssertionError("Cleanup should delete old expired tokens.")
-            if recently_expired_token.token_hash in remaining_hashes:
-                raise AssertionError("Cleanup should delete recently expired tokens.")
-
-            deleted_reset_count = (
-                await password_reset_token_repository.delete_old_tokens(
-                    db,
-                    older_than,
-                )
-            )
-            if deleted_reset_count != 3:
+            expected_remaining_hashes = {active_token.token_hash}
+            if remaining_hashes != expected_remaining_hashes:
                 raise AssertionError(
-                    f"Expected 3 deleted reset tokens, got {deleted_reset_count}."
+                    "Cleanup should keep only the test user's active email "
+                    f"verification token; got {remaining_hashes}."
                 )
+
+            await password_reset_token_repository.delete_old_tokens(
+                db,
+                older_than,
+            )
 
             remaining_reset_tokens = await db.scalars(
                 select(PasswordResetToken).where(PasswordResetToken.user_id == user.id)
@@ -159,15 +151,11 @@ async def check_token_cleanup() -> None:
             remaining_reset_hashes = {
                 token.token_hash for token in remaining_reset_tokens
             }
-            if active_reset_token.token_hash not in remaining_reset_hashes:
-                raise AssertionError("Cleanup should keep active reset tokens.")
-            if old_used_reset_token.token_hash in remaining_reset_hashes:
-                raise AssertionError("Cleanup should delete old used reset tokens.")
-            if old_expired_reset_token.token_hash in remaining_reset_hashes:
-                raise AssertionError("Cleanup should delete old expired reset tokens.")
-            if recently_expired_reset_token.token_hash in remaining_reset_hashes:
+            expected_remaining_reset_hashes = {active_reset_token.token_hash}
+            if remaining_reset_hashes != expected_remaining_reset_hashes:
                 raise AssertionError(
-                    "Cleanup should delete recently expired reset tokens."
+                    "Cleanup should keep only the test user's active password "
+                    f"reset token; got {remaining_reset_hashes}."
                 )
         finally:
             await db.execute(delete(User).where(User.email == email))

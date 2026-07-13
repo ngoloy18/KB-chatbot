@@ -14,6 +14,7 @@ from app.constants.database import SCHEMA_NAME
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.constants.permissions import (
     DOCUMENT_PERMISSION_OWNER,
+    DOCUMENT_PERMISSION_READ,
     DOCUMENT_READ_PERMISSIONS,
 )
 from app.core.config import DocumentCategory
@@ -102,6 +103,7 @@ class DocumentRepository:
         db: AsyncSession,
         document_id: UUID,
         include_deleted: bool = False,
+        for_update: bool = False,
     ) -> Document | None:
         """Load one document ORM object with its category relationship."""
 
@@ -113,6 +115,8 @@ class DocumentRepository:
             .options(selectinload(Document.category))
             .where(*filters)
         )
+        if for_update:
+            query = query.with_for_update()
         return await db.scalar(query)
 
     async def get_active_document_by_checksum(
@@ -333,6 +337,7 @@ class DocumentRepository:
             permission_clause = f"""
                 AND (
                     d.created_by = CAST(:user_id AS uuid)
+                    OR d.is_global_read IS TRUE
                     OR EXISTS (
                         SELECT 1
                         FROM {SCHEMA_NAME}.document_permissions AS p
@@ -480,6 +485,16 @@ class DocumentRepository:
         if (await db.scalar(permission_query) or 0) > 0:
             return True
 
+        if DOCUMENT_PERMISSION_READ in allowed_permissions:
+            global_read_query = select(func.count()).select_from(Document).where(
+                and_(
+                    Document.id == document_id,
+                    Document.is_global_read.is_(True),
+                )
+            )
+            if (await db.scalar(global_read_query) or 0) > 0:
+                return True
+
         if DOCUMENT_PERMISSION_OWNER not in allowed_permissions:
             return False
         owner_query = select(func.count()).select_from(Document).where(
@@ -508,6 +523,7 @@ class DocumentRepository:
         payload: DocumentCreate,
         category: DocumentCategoryModel,
         created_by: UUID | None = None,
+        is_global_read: bool = False,
     ) -> Document:
         """Build and insert one document row into PostgreSQL."""
 
@@ -523,11 +539,13 @@ class DocumentRepository:
             content=payload.content,
             status=DOCUMENT_STATUS_READY,
             created_by=created_by,
+            is_global_read=is_global_read,
         )
 
-        # Add stages the object; commit writes the INSERT to PostgreSQL.
+        # The service commits only after the document's chunks, owner permission,
+        # and initial version have all been staged successfully.
         db.add(document)
-        await db.commit()
+        await db.flush()
         return document
 
     async def update_document(
@@ -537,7 +555,7 @@ class DocumentRepository:
         payload: DocumentUpdate,
         category: DocumentCategoryModel | None = None,
     ) -> Document:
-        """Apply changed fields to a loaded document row and commit them."""
+        """Stage changed fields on a loaded document row."""
 
         # Each field is optional for update, so only provided values are changed.
         if payload.name is not None:
@@ -556,8 +574,9 @@ class DocumentRepository:
             document.category_id = category.id
             document.category = category
 
-        # Commit writes the UPDATE to PostgreSQL.
-        await db.commit()
+        # Flush catches database errors without ending the service-owned
+        # transaction that also replaces chunks and appends a version.
+        await db.flush()
         return document
 
     async def replace_document_chunks(
@@ -593,7 +612,7 @@ class DocumentRepository:
                 for chunk in chunks
             ]
         )
-        await db.commit()
+        await db.flush()
         await _sync_document_chunk_vectors(db, document.id, chunks)
 
     async def soft_delete_document(self, db: AsyncSession, document: Document) -> Document:
@@ -641,7 +660,7 @@ class DocumentRepository:
             content=document.content,
         )
         db.add(version)
-        await db.commit()
+        await db.flush()
         await db.refresh(version)
         return version
 
@@ -704,13 +723,18 @@ class DocumentRepository:
         document_id: UUID,
         user_id: UUID,
         permission: str,
+        *,
+        commit: bool = True,
     ) -> DocumentPermission:
         """Create or update a document permission row."""
 
         existing_permission = await self.get_permission(db, document_id, user_id)
         if existing_permission is not None:
             existing_permission.permission = permission
-            await db.commit()
+            if commit:
+                await db.commit()
+            else:
+                await db.flush()
             await db.refresh(existing_permission)
             return existing_permission
 
@@ -720,7 +744,10 @@ class DocumentRepository:
             permission=permission,
         )
         db.add(new_permission)
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
         await db.refresh(new_permission)
         return new_permission
 
@@ -743,6 +770,7 @@ def _readable_document_filter(user_id: UUID):
 
     return or_(
         Document.created_by == user_id,
+        Document.is_global_read.is_(True),
         Document.id.in_(
             select(DocumentPermission.document_id).where(
                 and_(
@@ -861,4 +889,3 @@ async def _sync_document_chunk_vectors(
                 "chunk_index": chunk.chunk_index,
             },
         )
-    await db.commit()

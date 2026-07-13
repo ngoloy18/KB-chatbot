@@ -38,11 +38,16 @@ async def rechunk_documents(
 
         documents = list((await db.scalars(query)).all())
         for document in documents:
-            await document_service._replace_document_chunks(
-                db=db,
-                document=document,
-                content=document.content,
-            )
+            try:
+                await document_service._replace_document_chunks(
+                    db=db,
+                    document=document,
+                    content=document.content,
+                )
+                await db.commit()
+            except Exception:
+                await db.rollback()
+                raise
             print(f"Reprocessed {document.id} - {document.title}")
 
     print(f"Document rechunk OK: {len(documents)} document(s) reprocessed.")

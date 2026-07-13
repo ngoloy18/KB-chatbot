@@ -73,17 +73,21 @@ def save_uploaded_file(file: UploadFile, file_bytes: bytes) -> tuple[str, str, s
 def cleanup_saved_upload(file_path: str | None) -> None:
     """Remove a saved upload when database work fails or a file is replaced."""
 
-    if file_path is None:
-        return
-    saved_path = Path(file_path)
-    upload_root = UPLOAD_DIR.resolve()
-    resolved_path = saved_path.resolve()
-    # Only delete files from the configured upload folder.
-    if resolved_path.is_relative_to(upload_root) and resolved_path.exists():
+    try:
+        if file_path is None:
+            return
+        saved_path = Path(file_path)
+        upload_root = UPLOAD_DIR.resolve()
+        resolved_path = saved_path.resolve()
+        # Only delete files from the configured upload folder.
+        if resolved_path.is_relative_to(upload_root):
+            resolved_path.unlink(missing_ok=True)
+    except Exception:
         try:
-            resolved_path.unlink()
-        except OSError:
             logger.exception("event=document.upload_cleanup_failed path=%s", file_path)
+        except Exception:
+            # Cleanup is best-effort and must not replace the request outcome.
+            pass
 
 
 def validate_document_upload(file: UploadFile, file_bytes: bytes) -> None:
@@ -291,7 +295,7 @@ async def get_document(
     summary="Upload a markdown document",
     description=(
         "Authenticated upload endpoint that accepts .md files up to 10MB. "
-        "Normal users own their uploads; admins can see every document."
+        "Normal-user uploads are private; admin uploads are readable by every user."
     ),
 )
 async def upload_document(
@@ -300,7 +304,7 @@ async def upload_document(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> DocumentResponse:
-    """Create a private document from a validated markdown upload."""
+    """Create a validated upload with access based on the uploader's role."""
 
     payload = await build_document_payload_from_upload(
         request=request,
@@ -314,24 +318,6 @@ async def upload_document(
             current_user_id=current_user.id,
             is_admin=current_user.role == USER_ROLE_ADMIN,
         )
-        logger.info(
-            "event=document.upload_created document_id=%s user_id=%s",
-            document.id,
-            current_user.id,
-        )
-        await audit_service.safe_record(
-            db=db,
-            action="document.upload_created",
-            actor_user_id=current_user.id,
-            resource_type="document",
-            resource_id=document.id,
-            details={
-                "name": document.name,
-                "category": document.category.value,
-                "file_name": document.file_name,
-            },
-        )
-        return document
     except DocumentCategoryNotFoundError as exc:
         cleanup_saved_upload(payload.file_path)
         raise HTTPException(
@@ -356,6 +342,27 @@ async def upload_document(
     except Exception:
         cleanup_saved_upload(payload.file_path)
         raise
+
+    # The service has committed at this point. Post-commit logging failures must
+    # never remove the upload that the document row now references.
+    logger.info(
+        "event=document.upload_created document_id=%s user_id=%s",
+        document.id,
+        current_user.id,
+    )
+    await audit_service.safe_record(
+        db=db,
+        action="document.upload_created",
+        actor_user_id=current_user.id,
+        resource_type="document",
+        resource_id=document.id,
+        details={
+            "name": document.name,
+            "category": document.category.value,
+            "file_name": document.file_name,
+        },
+    )
+    return document
 
 
 @router.put(
@@ -407,25 +414,6 @@ async def update_document(
             current_user_id=current_user.id,
             is_admin=current_user.role == USER_ROLE_ADMIN,
         )
-        cleanup_saved_upload(old_file_path)
-        logger.info(
-            "event=document.upload_replaced document_id=%s user_id=%s",
-            updated_document.id,
-            current_user.id,
-        )
-        await audit_service.safe_record(
-            db=db,
-            action="document.upload_replaced",
-            actor_user_id=current_user.id,
-            resource_type="document",
-            resource_id=updated_document.id,
-            details={
-                "name": updated_document.name,
-                "category": updated_document.category.value,
-                "file_name": updated_document.file_name,
-            },
-        )
-        return updated_document
     except DocumentNotFoundError as exc:
         cleanup_saved_upload(new_file_path)
         # Route layer decides the HTTP status code for not-found service errors.
@@ -457,6 +445,28 @@ async def update_document(
     except Exception:
         cleanup_saved_upload(new_file_path)
         raise
+
+    # update_document committed and released the replacement lock. The old file
+    # can now be removed without risking cleanup of the persisted replacement.
+    cleanup_saved_upload(old_file_path)
+    logger.info(
+        "event=document.upload_replaced document_id=%s user_id=%s",
+        updated_document.id,
+        current_user.id,
+    )
+    await audit_service.safe_record(
+        db=db,
+        action="document.upload_replaced",
+        actor_user_id=current_user.id,
+        resource_type="document",
+        resource_id=updated_document.id,
+        details={
+            "name": updated_document.name,
+            "category": updated_document.category.value,
+            "file_name": updated_document.file_name,
+        },
+    )
+    return updated_document
 
 
 @router.patch(

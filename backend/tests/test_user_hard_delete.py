@@ -135,6 +135,10 @@ async def check_user_hard_delete_with_related_rows() -> None:
                 raise AssertionError("Hard delete should not delete documents.")
             if kept_document.created_by is not None:
                 raise AssertionError("Hard delete should clear document created_by.")
+            if kept_document.is_global_read:
+                raise AssertionError(
+                    "Hard delete must not publish a normal user's private document."
+                )
 
             remaining_session = await db.scalar(
                 select(ChatSession).where(ChatSession.id == session.id)

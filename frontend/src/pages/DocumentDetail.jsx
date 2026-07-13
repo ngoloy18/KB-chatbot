@@ -162,6 +162,7 @@ export function DocumentDetail() {
           <div className="flex flex-wrap gap-2">
             <StatusChip tone="teal">{categoryLabels[document.category] || document.category || "Uncategorized"}</StatusChip>
             <StatusChip tone={document.is_deleted ? "gray" : "green"}>{document.is_deleted ? "Deleted" : "Published"}</StatusChip>
+            {document.is_global_read && <StatusChip tone="blue">All users: read</StatusChip>}
           </div>
         </div>
 
@@ -227,6 +228,7 @@ export function DocumentDetail() {
       {isAdmin && (
         <DocumentPermissions
           documentId={id}
+          isGlobalRead={document.is_global_read}
           permissions={permissions}
           loading={loadingAdminData}
           users={users}
@@ -304,8 +306,8 @@ function ReplaceDocumentModal({ document, onClose, onUpdated }) {
   );
 }
 
-function DocumentPermissions({ documentId, permissions, loading, users, onPermissionsChange, userLabel }) {
-  const [form, setForm] = useState({ userId: "", permission: "read" });
+function DocumentPermissions({ documentId, isGlobalRead, permissions, loading, users, onPermissionsChange, userLabel }) {
+  const [form, setForm] = useState({ userId: "", permission: isGlobalRead ? "write" : "read" });
   const [feedback, setFeedback] = useState("");
 
   useEffect(() => {
@@ -337,7 +339,7 @@ function DocumentPermissions({ documentId, permissions, loading, users, onPermis
     try {
       await documentPermissionsApi.revoke(documentId, permission.user_id);
       onPermissionsChange((current) => current.filter((item) => item.user_id !== permission.user_id));
-      setFeedback("Permission revoked.");
+      setFeedback(isGlobalRead ? "Explicit permission revoked; global read access remains." : "Permission revoked.");
     } catch (error) {
       setFeedback(error.message);
     }
@@ -350,7 +352,11 @@ function DocumentPermissions({ documentId, permissions, loading, users, onPermis
           <span className="grid h-11 w-11 place-items-center rounded-lg bg-teal-50 text-med-primary"><ShieldCheck size={22} /></span>
           <div>
             <h2 className="text-xl font-black text-med-text">Document permissions</h2>
-            <p className="mt-1 text-sm text-med-muted">Grant read, write, or owner access for this document.</p>
+            <p className="mt-1 text-sm text-med-muted">
+              {isGlobalRead
+                ? "Every user has baseline read access. Explicit permissions grant write or owner access."
+                : "Grant read, write, or owner access for this document."}
+            </p>
           </div>
         </div>
       </div>
@@ -360,7 +366,7 @@ function DocumentPermissions({ documentId, permissions, loading, users, onPermis
           {users.map((user) => <option key={user.id} value={user.id}>{user.full_name || user.email}</option>)}
         </select>
         <select className="input" value={form.permission} onChange={(event) => setForm((current) => ({ ...current, permission: event.target.value }))}>
-          <option value="read">Read</option>
+          {!isGlobalRead && <option value="read">Read</option>}
           <option value="write">Write</option>
           <option value="owner">Owner</option>
         </select>
@@ -392,7 +398,7 @@ function DocumentPermissions({ documentId, permissions, loading, users, onPermis
               </tr>
             ))}
             {!loading && permissions.length === 0 && (
-              <tr><td className="p-6 text-center text-sm font-semibold text-med-muted" colSpan="4">No explicit permissions yet.</td></tr>
+              <tr><td className="p-6 text-center text-sm font-semibold text-med-muted" colSpan="4">{isGlobalRead ? "All users have read access; no elevated permissions yet." : "No explicit permissions yet."}</td></tr>
             )}
           </tbody>
         </table>

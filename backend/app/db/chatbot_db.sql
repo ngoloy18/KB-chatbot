@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS kb.documents
     content_checksum character varying(64) COLLATE pg_catalog."default",
     content text COLLATE pg_catalog."default" NOT NULL,
     status character varying(30) COLLATE pg_catalog."default" NOT NULL DEFAULT 'uploaded'::character varying,
+    is_global_read boolean NOT NULL DEFAULT false,
     is_deleted boolean NOT NULL DEFAULT false,
     deleted_at timestamp with time zone,
     created_by uuid,
@@ -121,6 +122,14 @@ CREATE INDEX IF NOT EXISTS idx_documents_category_id
 CREATE INDEX IF NOT EXISTS idx_documents_created_by
     ON kb.documents USING btree
     (created_by ASC NULLS LAST)
+    TABLESPACE pg_default;
+-- Index: idx_documents_is_global_read
+
+-- DROP INDEX IF EXISTS kb.idx_documents_is_global_read;
+
+CREATE INDEX IF NOT EXISTS idx_documents_is_global_read
+    ON kb.documents USING btree
+    (is_global_read ASC NULLS LAST)
     TABLESPACE pg_default;
 -- Index: idx_documents_content_checksum
 

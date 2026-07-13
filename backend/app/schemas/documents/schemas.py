@@ -87,6 +87,7 @@ class DocumentResponse(BaseModel):
     file_type: str | None = None
     content_checksum: str | None = None
     content: str
+    is_global_read: bool = False
     is_deleted: bool = False
     deleted_at: datetime | None = None
     created_at: datetime
@@ -136,6 +137,7 @@ def document_to_response(document: Document) -> DocumentResponse:
         file_type=document.file_type,
         content_checksum=document.content_checksum,
         content=document.content,
+        is_global_read=document.is_global_read,
         is_deleted=document.is_deleted,
         deleted_at=document.deleted_at,
         created_at=document.created_at,
