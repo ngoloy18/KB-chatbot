@@ -146,6 +146,8 @@ export function DocumentDetail() {
     );
   }
 
+  const isOwner = currentUser?.id === document.created_by;
+
   return (
     <div className="grid gap-5">
       <Link className="inline-flex w-fit items-center gap-2 text-sm font-black text-med-primary" to="/documents"><ArrowLeft size={16} /> Back to documents</Link>
@@ -172,7 +174,7 @@ export function DocumentDetail() {
           <div className="rounded-lg bg-med-bg p-4"><dt className="font-bold text-med-muted">Checksum</dt><dd className="mt-1 truncate font-black">{document.content_checksum || "Not available"}</dd></div>
         </dl>
 
-        {isAdmin && (
+        {isOwner && (
           <div className="mt-6 flex flex-wrap gap-3">
             <button className="secondary-button" type="button" onClick={() => setEditOpen(true)}><Upload size={17} /> Replace markdown</button>
             {document.is_deleted ? (
@@ -181,6 +183,12 @@ export function DocumentDetail() {
               <button className="danger-button" type="button" onClick={deleteDocument}><Trash2 size={17} /> Delete</button>
             )}
           </div>
+        )}
+
+        {isAdmin && !isOwner && (
+          <p className="mt-5 rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm font-semibold text-sky-700">
+            Admin read-only access: only the user who uploaded this document can replace, delete, or restore it.
+          </p>
         )}
 
         {feedback && <p className="mt-5 rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm font-semibold text-sky-700">{feedback}</p>}
@@ -237,7 +245,7 @@ export function DocumentDetail() {
         />
       )}
 
-      {editOpen && (
+      {isOwner && editOpen && (
         <ReplaceDocumentModal
           document={document}
           onClose={() => setEditOpen(false)}

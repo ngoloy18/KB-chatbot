@@ -4,10 +4,8 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.permissions import (
-    DOCUMENT_DELETE_PERMISSIONS,
     DOCUMENT_PERMISSION_OWNER,
     DOCUMENT_READ_PERMISSIONS,
-    DOCUMENT_WRITE_PERMISSIONS,
 )
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.core.config import DocumentCategory, settings
@@ -306,17 +304,10 @@ class DocumentService:
 
         # Loading first lets us return 404 instead of silently doing nothing.
         document = await self._get_document_or_raise(db, document_id)
-        if not is_admin:
-            if current_user_id is None:
-                raise DocumentAccessDeniedError("Login is required to delete documents.")
-            user_can_delete = await document_repository.user_has_document_permission(
-                db,
-                document_id,
-                current_user_id,
-                DOCUMENT_DELETE_PERMISSIONS,
-            )
-            if not user_can_delete:
-                raise DocumentAccessDeniedError("Owner permission is required.")
+        if current_user_id is None:
+            raise DocumentAccessDeniedError("Login is required to delete documents.")
+        if document.created_by != current_user_id:
+            raise DocumentAccessDeniedError("Only the document owner can delete it.")
         await document_repository.soft_delete_document(db, document)
 
     async def restore_document(
@@ -333,17 +324,10 @@ class DocumentService:
             document_id,
             include_deleted=True,
         )
-        if not is_admin:
-            if current_user_id is None:
-                raise DocumentAccessDeniedError("Login is required to restore documents.")
-            user_can_restore = await document_repository.user_has_document_permission(
-                db,
-                document_id,
-                current_user_id,
-                DOCUMENT_DELETE_PERMISSIONS,
-            )
-            if not user_can_restore:
-                raise DocumentAccessDeniedError("Owner permission is required.")
+        if current_user_id is None:
+            raise DocumentAccessDeniedError("Login is required to restore documents.")
+        if document.created_by != current_user_id:
+            raise DocumentAccessDeniedError("Only the document owner can restore it.")
         if document.content_checksum is not None:
             await self._raise_if_duplicate_checksum(
                 db,
@@ -483,18 +467,11 @@ class DocumentService:
     ) -> None:
         """Raise when the current user cannot replace the document content."""
 
-        if is_admin:
-            return
         if current_user_id is None:
             raise DocumentAccessDeniedError("Login is required to update documents.")
-        user_can_write = await document_repository.user_has_document_permission(
-            db,
-            document_id,
-            current_user_id,
-            DOCUMENT_WRITE_PERMISSIONS,
-        )
-        if not user_can_write:
-            raise DocumentAccessDeniedError("Write permission is required.")
+        document = await self._get_document_or_raise(db, document_id)
+        if document.created_by != current_user_id:
+            raise DocumentAccessDeniedError("Only the document owner can update it.")
 
     async def _raise_if_duplicate_checksum(
         self,

@@ -80,6 +80,7 @@ class DocumentResponse(BaseModel):
 
     # UUID comes from PostgreSQL and is safe to expose in public API URLs.
     id: UUID
+    created_by: UUID | None = None
     name: str
     category: DocumentCategory
     # Keep public file metadata useful without exposing server storage paths.
@@ -131,6 +132,7 @@ def document_to_response(document: Document) -> DocumentResponse:
 
     return DocumentResponse(
         id=document.id,
+        created_by=document.created_by,
         name=document.title,
         category=DocumentCategory(document.category.name),
         file_name=document.file_name,

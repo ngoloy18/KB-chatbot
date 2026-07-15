@@ -104,6 +104,8 @@ export function Documents() {
 
   const selectedDocuments = documents.filter((document) => selectedIds.includes(document.id));
   const selectedCount = selectedDocuments.length;
+  const selectedDocumentsAreOwned = selectedCount > 0
+    && selectedDocuments.every((document) => document.created_by === currentUser?.id);
   const allVisibleSelected = documents.length > 0 && selectedCount === documents.length;
 
   useEffect(() => {
@@ -149,7 +151,7 @@ export function Documents() {
   }
 
   async function deleteSelectedDocuments() {
-    if (!isAdmin || selectedDocuments.length === 0) return;
+    if (!selectedDocumentsAreOwned) return;
     const deleteCount = selectedDocuments.length;
     if (!window.confirm(`Delete ${deleteCount} selected document${deleteCount === 1 ? "" : "s"}?`)) return;
 
@@ -285,10 +287,12 @@ export function Documents() {
                   <button className="secondary-button" disabled={bulkAccessLoading || !accessForm.userId} type="button" onClick={grantSelectedDocumentsAccess}>
                     <ShieldCheck size={16} /> {bulkAccessLoading ? "Saving..." : "Grant access"}
                   </button>
-                  <button className="danger-button" disabled={bulkActionLoading} type="button" onClick={deleteSelectedDocuments}>
-                    <Trash2 size={16} /> {bulkActionLoading ? "Deleting..." : "Delete selected"}
-                  </button>
                 </>
+              )}
+              {selectedDocumentsAreOwned && (
+                <button className="danger-button" disabled={bulkActionLoading} type="button" onClick={deleteSelectedDocuments}>
+                  <Trash2 size={16} /> {bulkActionLoading ? "Deleting..." : "Delete selected"}
+                </button>
               )}
               <button className="secondary-button" type="button" onClick={() => setSelectedIds([])}>
                 <X size={16} /> Clear
