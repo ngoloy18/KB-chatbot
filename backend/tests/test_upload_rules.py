@@ -1,10 +1,14 @@
 import json
 import sys
+from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+from pypdf import PdfWriter
+from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +16,34 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 
 BASE_URL = "http://127.0.0.1:8000"
+
+
+def build_text_pdf(text: str) -> bytes:
+    """Build a small PDF fixture with a real extractable text layer."""
+
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=612, height=792)
+    font = DictionaryObject(
+        {
+            NameObject("/Type"): NameObject("/Font"),
+            NameObject("/Subtype"): NameObject("/Type1"),
+            NameObject("/BaseFont"): NameObject("/Helvetica"),
+        }
+    )
+    page[NameObject("/Resources")] = DictionaryObject(
+        {
+            NameObject("/Font"): DictionaryObject(
+                {NameObject("/F1"): writer._add_object(font)}
+            )
+        }
+    )
+    stream = DecodedStreamObject()
+    escaped_text = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+    stream.set_data(f"BT /F1 12 Tf 72 720 Td ({escaped_text}) Tj ET".encode("ascii"))
+    page[NameObject("/Contents")] = writer._add_object(stream)
+    output = BytesIO()
+    writer.write(output)
+    return output.getvalue()
 
 
 def load_env() -> dict[str, str]:
@@ -117,7 +149,7 @@ def run_upload_rule_test() -> None:
     other_user_email = f"upload_other_{suffix}@example.com"
     password = "Password123!"
     created_user_ids: list[str] = []
-    created_document_ids: list[str] = []
+    created_documents: list[tuple[str, str]] = []
     admin_token = login(env["INITIAL_ADMIN_EMAIL"], env["INITIAL_ADMIN_PASSWORD"])
 
     try:
@@ -174,7 +206,7 @@ def run_upload_rule_test() -> None:
             },
             expected_status={201},
         )
-        created_document_ids.append(uploaded_by_user["id"])
+        created_documents.append((uploaded_by_user["id"], user_token))
 
         api_request(
             "GET",
@@ -218,7 +250,48 @@ def run_upload_rule_test() -> None:
             },
             expected_status={201},
         )
-        created_document_ids.append(uploaded["id"])
+        created_documents.append((uploaded["id"], admin_token))
+        if "Valid markdown upload" not in uploaded["content"]:
+            raise AssertionError("Markdown upload should store extracted content.")
+
+        text_upload = api_request(
+            "POST",
+            "/api/documents/upload",
+            token=admin_token,
+            multipart={
+                "name": f"Text Upload {suffix}",
+                "category": "logging",
+                "file": (
+                    "logging.txt",
+                    b"Log failures with useful context.",
+                    "text/plain",
+                ),
+            },
+            expected_status={201},
+        )
+        created_documents.append((text_upload["id"], admin_token))
+        if text_upload["content"] != "Log failures with useful context.":
+            raise AssertionError("TXT upload should store extracted content.")
+
+        pdf_marker = f"PDF extraction marker {suffix}"
+        pdf_upload = api_request(
+            "POST",
+            "/api/documents/upload",
+            token=admin_token,
+            multipart={
+                "name": f"PDF Upload {suffix}",
+                "category": "database",
+                "file": (
+                    "database.pdf",
+                    build_text_pdf(pdf_marker),
+                    "application/pdf",
+                ),
+            },
+            expected_status={201},
+        )
+        created_documents.append((pdf_upload["id"], admin_token))
+        if pdf_marker not in pdf_upload["content"]:
+            raise AssertionError("PDF upload should store extracted content.")
 
         api_request(
             "POST",
@@ -227,7 +300,11 @@ def run_upload_rule_test() -> None:
             multipart={
                 "name": f"Wrong Extension {suffix}",
                 "category": "api-standard",
-                "file": ("not-markdown.txt", b"not markdown", "text/plain"),
+                "file": (
+                    "unsupported.docx",
+                    b"not supported",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ),
             },
             expected_status={400},
         )
@@ -245,11 +322,11 @@ def run_upload_rule_test() -> None:
             expected_status={413},
         )
     finally:
-        for document_id in created_document_ids:
+        for document_id, owner_token in created_documents:
             api_request(
                 "DELETE",
                 f"/api/documents/{document_id}",
-                token=admin_token,
+                token=owner_token,
                 expected_status={204, 404},
             )
         for user_id in created_user_ids:

@@ -303,9 +303,9 @@ function ReplaceDocumentModal({ document, onClose, onUpdated }) {
         <label className="field-label">Category<select className="input" value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}>{categoryOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
         <label className="grid min-h-40 cursor-pointer place-items-center rounded-xl border border-dashed border-med-primary bg-teal-50/50 p-6 text-center">
           <Upload className="text-med-primary" size={34} />
-          <strong className="mt-3 text-med-text">{file ? file.name : "Select replacement markdown"}</strong>
-          <span className="mt-2 text-xs text-med-muted">{file ? `${fileSize(file.size)} selected` : "Markdown only (.md), UTF-8 text, max 10MB"}</span>
-          <input className="hidden" type="file" accept=".md" onChange={(event) => setFile(event.target.files?.[0] || null)} />
+          <strong className="mt-3 text-med-text">{file ? file.name : "Select replacement document"}</strong>
+          <span className="mt-2 text-xs text-med-muted">{file ? `${fileSize(file.size)} selected` : "PDF, TXT, or Markdown (.pdf, .txt, .md), max 10MB"}</span>
+          <input className="hidden" type="file" accept=".pdf,.txt,.md" onChange={(event) => setFile(event.target.files?.[0] || null)} />
         </label>
         {file && <button className="secondary-button w-fit" type="button" onClick={() => setFile(null)}><X size={16} /> Clear file</button>}
         {error && <p className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm font-semibold text-med-error">{error}</p>}

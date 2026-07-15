@@ -98,6 +98,7 @@ jobs:
           python tests/test_rate_limiter.py
           python tests/test_document_chunking.py
           python tests/test_document_lifecycle.py
+          python tests/test_document_owner_mutations.py
           python tests/test_document_search.py
           python tests/test_chat_flow.py
           python tests/test_token_cleanup.py

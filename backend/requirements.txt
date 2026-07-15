@@ -12,5 +12,6 @@ passlib[bcrypt]==1.7.4
 python-jose[cryptography]==3.5.0
 google-genai==2.10.0
 pgvector==0.4.2
+pypdf==6.7.5
 pytest==9.1.1
 pytest-asyncio==1.4.0

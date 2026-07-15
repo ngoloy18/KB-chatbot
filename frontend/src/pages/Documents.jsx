@@ -432,10 +432,10 @@ function UploadDocumentModal({ onClose, onUploaded }) {
       <form className="grid gap-5" id="upload-document-form" onSubmit={upload}>
         <label className="grid min-h-44 cursor-pointer place-items-center rounded-xl border border-dashed border-med-primary bg-teal-50/50 p-6 text-center">
           <Upload className="text-med-primary" size={36} />
-          <strong className="mt-3 text-med-text">Select a markdown file</strong>
+          <strong className="mt-3 text-med-text">Select a document</strong>
           <span className="mt-1 text-sm text-med-primary">or click to browse</span>
-          <span className="mt-3 text-xs text-med-muted">Markdown only (.md), UTF-8 text, max 10MB by backend default</span>
-          <input className="hidden" type="file" accept=".md" onChange={selectFiles} />
+          <span className="mt-3 text-xs text-med-muted">PDF, TXT, or Markdown (.pdf, .txt, .md), max 10MB</span>
+          <input className="hidden" type="file" accept=".pdf,.txt,.md" onChange={selectFiles} />
         </label>
 
         {files.length > 0 && (

@@ -117,7 +117,7 @@ class Settings:
         self.max_upload_size_mb = int(os.getenv("MAX_UPLOAD_SIZE_MB", "10"))
         self.max_upload_size_bytes = self.max_upload_size_mb * 1024 * 1024
         self.allowed_upload_extensions = self._parse_upload_extensions(
-            os.getenv("ALLOWED_UPLOAD_EXTENSIONS", ".md")
+            os.getenv("ALLOWED_UPLOAD_EXTENSIONS", ".md,.txt,.pdf")
         )
 
         # Rate limit settings protect the API from repeated requests by one client.

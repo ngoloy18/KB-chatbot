@@ -10,8 +10,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.core.config import DocumentCategory, settings
+from app.core.security import hash_password
 from app.db.session import AsyncSessionLocal
-from app.models.database import Document
+from app.models.database import Document, User
+from app.repositories.users.users import user_repository
 from app.schemas.documents.schemas import DocumentCreate, DocumentUpdate
 from app.services import document_service
 from app.services.documents.exceptions import (
@@ -38,7 +40,14 @@ async def check_document_lifecycle() -> None:
     updated_content = f"# Lifecycle {suffix}\n\nUpdated content {suffix}."
 
     async with AsyncSessionLocal() as db:
+        owner = None
         try:
+            owner = await user_repository.create_user(
+                db,
+                email=f"lifecycle-owner-{suffix}@example.com",
+                full_name="Lifecycle Test Owner",
+                hashed_password=hash_password("Password123!"),
+            )
             document = await document_service.create_document(
                 db,
                 DocumentCreate(
@@ -49,6 +58,7 @@ async def check_document_lifecycle() -> None:
                     file_path=f"uploads/{document_name}.md",
                     file_type="text/markdown",
                 ),
+                current_user_id=owner.id,
             )
             if not document.content_checksum or len(document.content_checksum) != 64:
                 raise AssertionError("Created document should have a SHA-256 checksum.")
@@ -65,6 +75,7 @@ async def check_document_lifecycle() -> None:
                         file_path=f"uploads/{document_name}-duplicate.md",
                         file_type="text/markdown",
                     ),
+                    current_user_id=owner.id,
                 )
             except DocumentDuplicateError:
                 pass
@@ -74,7 +85,7 @@ async def check_document_lifecycle() -> None:
             versions = await document_service.list_document_versions(
                 db,
                 document.id,
-                is_admin=True,
+                current_user_id=owner.id,
             )
             if versions.total != 1 or versions.items[0].version_number != 1:
                 raise AssertionError("Create should save version 1.")
@@ -91,7 +102,7 @@ async def check_document_lifecycle() -> None:
                     file_path=f"uploads/{document_name}-updated.md",
                     file_type="text/markdown",
                 ),
-                is_admin=True,
+                current_user_id=owner.id,
             )
             if updated.content_checksum == document.content_checksum:
                 raise AssertionError("Updated content should change checksum.")
@@ -100,12 +111,16 @@ async def check_document_lifecycle() -> None:
             versions = await document_service.list_document_versions(
                 db,
                 document.id,
-                is_admin=True,
+                current_user_id=owner.id,
             )
             if versions.total != 2:
                 raise AssertionError("Update should append a document version.")
 
-            await document_service.delete_document(db, document.id, is_admin=True)
+            await document_service.delete_document(
+                db,
+                document.id,
+                current_user_id=owner.id,
+            )
             try:
                 await document_service.get_document(db, document.id, is_admin=True)
             except DocumentNotFoundError:
@@ -116,7 +131,7 @@ async def check_document_lifecycle() -> None:
             restored = await document_service.restore_document(
                 db,
                 document.id,
-                is_admin=True,
+                current_user_id=owner.id,
             )
             if restored.is_deleted or restored.deleted_at is not None:
                 raise AssertionError("Restore should clear soft-delete fields.")
@@ -126,6 +141,8 @@ async def check_document_lifecycle() -> None:
             await db.execute(
                 delete(Document).where(Document.title.ilike(f"{document_name}%"))
             )
+            if owner is not None:
+                await db.execute(delete(User).where(User.id == owner.id))
             await db.commit()
 
     print("Document lifecycle OK.")

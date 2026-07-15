@@ -34,7 +34,7 @@ Current safe config state:
 - SMTP host, username, password, and from-email are set.
 - SMTP TLS is enabled.
 - Frontend CORS origins allow `http://127.0.0.1:5173` and `http://localhost:5173`.
-- Uploads allow only `.md`.
+- Uploads extract and store text from `.md`, `.txt`, and text-based `.pdf` files.
 - Max upload size is `10MB`.
 - Email verification link base is currently `http://127.0.0.1:5173/verify-email`.
 - Password reset link base is currently `http://127.0.0.1:5173/reset-password`.
@@ -251,7 +251,7 @@ Upload:
 - Admin users can see every document.
 - Multipart form fields: `name`, `category`, `file`.
 - File must be UTF-8 text.
-- File extension must currently be `.md`.
+- Supported upload extensions are `.md`, `.txt`, and `.pdf`; scanned image-only PDFs require OCR and are rejected.
 - Max upload size is `10MB`.
 - Upload creates document chunks and embeddings when embeddings are enabled.
 - Upload returns public document metadata and does not expose `file_path`.

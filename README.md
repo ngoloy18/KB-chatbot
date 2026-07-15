@@ -125,6 +125,7 @@ py tests/test_model_mappers.py
 py tests/test_auth_flow.py
 py tests/test_user_hard_delete.py
 py tests/test_document_lifecycle.py
+py tests/test_document_text_extraction.py
 py tests/test_ask_flow.py
 py tests/test_chat_flow.py
 ```

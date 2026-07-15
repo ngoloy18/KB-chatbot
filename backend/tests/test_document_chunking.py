@@ -11,7 +11,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.core.config import DocumentCategory, settings
 from app.db.session import AsyncSessionLocal
-from app.models.database import Document, DocumentChunk
+from app.core.security import hash_password
+from app.models.database import Document, DocumentChunk, User
+from app.repositories.users.users import user_repository
 from app.schemas.documents.schemas import DocumentCreate, DocumentUpdate
 from app.services import document_service
 from app.services.documents.chunking import document_chunking_service
@@ -95,7 +97,14 @@ async def check_document_chunks_are_saved() -> None:
     )
 
     async with AsyncSessionLocal() as db:
+        owner = None
         try:
+            owner = await user_repository.create_user(
+                db,
+                email=f"chunk-owner-{uuid4().hex[:8]}@example.com",
+                full_name="Chunk Test Owner",
+                hashed_password=hash_password("Password123!"),
+            )
             created_document = await document_service.create_document(
                 db,
                 DocumentCreate(
@@ -106,6 +115,7 @@ async def check_document_chunks_are_saved() -> None:
                     file_path="uploads/chunk-test.md",
                     file_type="text/markdown",
                 ),
+                current_user_id=owner.id,
             )
             initial_chunk_count = await db.scalar(
                 select(func.count()).select_from(DocumentChunk).where(
@@ -119,7 +129,7 @@ async def check_document_chunks_are_saved() -> None:
                 db=db,
                 document_id=created_document.id,
                 payload=DocumentUpdate(content=updated_content),
-                is_admin=True,
+                current_user_id=owner.id,
             )
             updated_chunk_count = await db.scalar(
                 select(func.count()).select_from(DocumentChunk).where(
@@ -134,6 +144,8 @@ async def check_document_chunks_are_saved() -> None:
         finally:
             settings.embeddings_enabled = original_embeddings_enabled
             await db.execute(delete(Document).where(Document.title == document_name))
+            if owner is not None:
+                await db.execute(delete(User).where(User.id == owner.id))
             await db.commit()
 
 

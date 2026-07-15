@@ -41,6 +41,10 @@ from app.services.documents.exceptions import (
     DocumentDuplicateError,
     DocumentNotFoundError,
 )
+from app.services.documents.text_extraction import (
+    DocumentTextExtractionError,
+    extract_document_text,
+)
 
 # All document endpoints share the same prefix and Swagger tag.
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -110,23 +114,22 @@ def validate_document_upload(file: UploadFile, file_bytes: bytes) -> None:
 async def build_document_payload_from_upload(
     request: DocumentUploadRequest,
     file: UploadFile,
-    require_markdown: bool = False,
+    validate_upload: bool = False,
 ) -> DocumentCreate:
     """Read an upload, validate it, save it, and build a create payload."""
 
     # UploadFile exposes async reads, which keeps this route compatible with
     # FastAPI's async request handling.
     file_bytes = await file.read()
-    if require_markdown:
+    if validate_upload:
         validate_document_upload(file, file_bytes)
 
     try:
-        # Store document content as text; non-UTF-8 files are rejected clearly.
-        content = file_bytes.decode("utf-8")
-    except UnicodeDecodeError as exc:
+        content = extract_document_text(file.filename or "", file_bytes)
+    except DocumentTextExtractionError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only UTF-8 text files are supported.",
+            detail=str(exc),
         ) from exc
 
     # Store the original file and capture metadata for file_name/file_path/file_type.
@@ -292,9 +295,9 @@ async def get_document(
     "/upload",
     response_model=DocumentResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Upload a markdown document",
+    summary="Upload a knowledge-base document",
     description=(
-        "Authenticated upload endpoint that accepts .md files up to 10MB. "
+        "Authenticated upload endpoint that extracts text from .md, .txt, and .pdf files up to 10MB. "
         "Normal-user uploads are private; admin uploads are readable by every user."
     ),
 )
@@ -309,7 +312,7 @@ async def upload_document(
     payload = await build_document_payload_from_upload(
         request=request,
         file=file,
-        require_markdown=True,
+        validate_upload=True,
     )
     try:
         document = await document_service.create_document(
@@ -385,7 +388,7 @@ async def update_document(
     create_payload = await build_document_payload_from_upload(
         request=request,
         file=file,
-        require_markdown=True,
+        validate_upload=True,
     )
     payload = DocumentUpdate(
         name=create_payload.name,

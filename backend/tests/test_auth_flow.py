@@ -15,6 +15,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.constants.auth import TOKEN_TYPE_BEARER, USER_ROLE_USER
+from app.core.config import settings
+from app.core.security import decode_access_token
 from app.db.session import AsyncSessionLocal
 from app.models.database import User
 from app.schemas.auth.schemas import (
@@ -37,6 +39,7 @@ async def check_normal_user_auth_flow() -> None:
 
     email = f"test_user_{uuid4().hex[:8]}@example.com"
     password = "Password123!"
+    original_access_token_expire_minutes = settings.access_token_expire_minutes
 
     async with AsyncSessionLocal() as db:
         try:
@@ -82,9 +85,22 @@ async def check_normal_user_auth_flow() -> None:
             if not token.refresh_token:
                 raise AssertionError("Login did not return a refresh token.")
 
+            settings.access_token_expire_minutes = -1
+            expired_pair = await auth_service.login(
+                db,
+                LoginRequest(email=email, password=password),
+            )
+            settings.access_token_expire_minutes = original_access_token_expire_minutes
+            try:
+                decode_access_token(expired_pair.access_token)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("An expired access token should be rejected.")
+
             refreshed_token = await auth_service.refresh_token(
                 db,
-                RefreshTokenRequest(refresh_token=token.refresh_token),
+                RefreshTokenRequest(refresh_token=expired_pair.refresh_token),
             )
             if refreshed_token.token_type != TOKEN_TYPE_BEARER:
                 raise AssertionError("Refresh did not return a Bearer token.")
@@ -92,6 +108,17 @@ async def check_normal_user_auth_flow() -> None:
                 raise AssertionError("Refresh did not return a new access token.")
             if not refreshed_token.refresh_token:
                 raise AssertionError("Refresh did not rotate the refresh token.")
+            decode_access_token(refreshed_token.access_token)
+
+            try:
+                await auth_service.refresh_token(
+                    db,
+                    RefreshTokenRequest(refresh_token=expired_pair.refresh_token),
+                )
+            except InvalidCredentialsError:
+                pass
+            else:
+                raise AssertionError("A rotated refresh token should be one-time use.")
 
             await auth_service.logout(
                 db,
@@ -152,6 +179,7 @@ async def check_normal_user_auth_flow() -> None:
             if not new_login.access_token or not new_login.refresh_token:
                 raise AssertionError("New password login did not return tokens.")
         finally:
+            settings.access_token_expire_minutes = original_access_token_expire_minutes
             # Keep the real local database clean after this test creates a user.
             await db.execute(delete(User).where(User.email == email))
             await db.commit()

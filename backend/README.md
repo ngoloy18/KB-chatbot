@@ -132,7 +132,7 @@ FRONTEND_RESET_PASSWORD_URL=http://127.0.0.1:5173/reset-password
 CORS_ALLOWED_ORIGINS=http://127.0.0.1:5173,http://localhost:5173
 UPLOAD_DIR=uploads
 MAX_UPLOAD_SIZE_MB=10
-ALLOWED_UPLOAD_EXTENSIONS=.md
+ALLOWED_UPLOAD_EXTENSIONS=.md,.txt,.pdf
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_REQUESTS=100
 RATE_LIMIT_WINDOW_SECONDS=60
@@ -267,6 +267,7 @@ py tests/test_document_chunking.py
 py tests/test_document_atomicity.py
 py tests/test_document_file_cleanup.py
 py tests/test_document_lifecycle.py
+py tests/test_document_text_extraction.py
 py tests/test_document_search.py
 py tests/test_admin_document_global_access.py
 py tests/test_ask_flow.py
@@ -479,7 +480,7 @@ Repositories contain SQLAlchemy queries and database commits.
 - `GET /api/documents/{document_id}/permissions` lists access rules for a document as admin.
 - `PUT /api/documents/{document_id}/permissions` grants or updates one user's access as admin.
 - `DELETE /api/documents/{document_id}/permissions/{user_id}` revokes one user's access as admin.
-- `POST /api/documents/upload` creates a document from an authenticated markdown upload.
+- `POST /api/documents/upload` extracts and stores text from authenticated PDF, TXT, and Markdown uploads. PDFs must contain an extractable text layer; image-only scans require OCR and are rejected clearly.
   Normal-user uploads are private; admin uploads are readable by every current
   and future user. Explicit permissions can still grant `write` or `owner`.
 - `PUT /api/documents/{document_id}` replaces a document as admin or a user with `write`/`owner` permission.
@@ -522,6 +523,6 @@ Repositories contain SQLAlchemy queries and database commits.
 - Try an invalid category and confirm validation rejects it.
 - Delete a document and confirm the same id returns `404` afterward.
 - Restart the API and confirm created documents still appear.
-- Confirm uploads reject non-`.md` files and files larger than 10MB.
+- Confirm PDF, TXT, and Markdown uploads store readable content; unsupported files, image-only PDFs, and files larger than 10MB are rejected clearly.
 
 More detail is in `WEEK2_DATABASE_NOTES.txt`.
